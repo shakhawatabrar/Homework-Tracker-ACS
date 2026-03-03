@@ -1,0 +1,169 @@
+import React, { useState, useEffect } from 'react';
+import { Student, HomeworkRecord } from '../types';
+import { Calendar as CalendarIcon, CheckCircle2, XCircle, Search } from 'lucide-react';
+
+interface Props {
+  students: Student[];
+  records: HomeworkRecord[];
+  setRecords: React.Dispatch<React.SetStateAction<HomeworkRecord[]>>;
+}
+
+export default function HomeworkTracker({ students, records, setRecords }: Props) {
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [currentSubmissions, setCurrentSubmissions] = useState<Record<string, boolean>>({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  useEffect(() => {
+    const record = records.find(r => r.date === date);
+    if (record) {
+      setCurrentSubmissions(record.submissions);
+    } else {
+      const initial: Record<string, boolean> = {};
+      students.forEach(s => {
+        initial[s.id] = false;
+      });
+      setCurrentSubmissions(initial);
+    }
+  }, [date, records, students]);
+
+  const toggleSubmission = (studentId: string, status: boolean) => {
+    setCurrentSubmissions(prev => ({
+      ...prev,
+      [studentId]: status
+    }));
+  };
+
+  const handleSave = () => {
+    const existingIndex = records.findIndex(r => r.date === date);
+    const newRecord: HomeworkRecord = {
+      date,
+      submissions: currentSubmissions
+    };
+
+    if (existingIndex >= 0) {
+      const newRecords = [...records];
+      newRecords[existingIndex] = newRecord;
+      setRecords(newRecords);
+    } else {
+      setRecords([...records, newRecord]);
+    }
+    
+    setShowSuccess(true);
+    setTimeout(() => setShowSuccess(false), 3000);
+  };
+
+  const submittedCount = Object.values(currentSubmissions).filter(Boolean).length;
+  const missedCount = students.length - submittedCount;
+
+  const filteredStudents = students.filter(student => 
+    student.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    student.roll.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6">
+      {showSuccess && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl flex items-center shadow-sm">
+          <CheckCircle2 className="w-5 h-5 mr-2" />
+          হোমওয়ার্ক আপডেট সফলভাবে সেভ করা হয়েছে!
+        </div>
+      )}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-2xl font-bold text-gray-800">হোমওয়ার্ক ট্র্যাকার</h2>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
+          <div className="relative w-full sm:w-64">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="নাম বা রোল দিয়ে খুঁজুন..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 pr-4 py-2 w-full border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm"
+            />
+          </div>
+          <div className="flex items-center space-x-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100 w-full sm:w-auto">
+            <CalendarIcon className="w-5 h-5 text-indigo-500" />
+            <input 
+              type="date" 
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="outline-none text-gray-700 bg-transparent font-medium w-full"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-4 bg-gray-50/50 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="text-sm text-gray-600 flex space-x-4">
+            <span>মোট ছাত্র: <strong className="text-gray-900">{students.length}</strong></span>
+            <span>জমা দিয়েছে: <strong className="text-emerald-600">{submittedCount}</strong></span>
+            <span>দেয়নি: <strong className="text-red-600">{missedCount}</strong></span>
+          </div>
+          <button 
+            onClick={handleSave}
+            className="bg-indigo-600 text-white px-6 py-2 rounded-xl hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm w-full sm:w-auto"
+          >
+            সেভ করুন
+          </button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-white border-b border-gray-100">
+                <th className="p-4 font-semibold text-gray-600 w-24">রোল</th>
+                <th className="p-4 font-semibold text-gray-600">নাম</th>
+                <th className="p-4 font-semibold text-gray-600 text-center w-56">স্ট্যাটাস</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredStudents.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="p-8 text-center text-gray-500">কোনো ছাত্রের তথ্য পাওয়া যায়নি।</td>
+                </tr>
+              ) : (
+                filteredStudents.sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true})).map(student => {
+                  const isSubmitted = currentSubmissions[student.id] || false;
+                  return (
+                    <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50/80 transition-colors">
+                      <td className="p-4 text-gray-800 font-mono text-sm">{student.roll}</td>
+                      <td className="p-4 text-gray-800 font-medium">{student.name}</td>
+                      <td className="p-4">
+                        <div className="flex justify-center space-x-2">
+                          <button 
+                            onClick={() => toggleSubmission(student.id, true)}
+                            className={`flex items-center px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                              isSubmitted 
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-sm' 
+                                : 'bg-gray-50 text-gray-500 hover:bg-gray-100 border border-transparent'
+                            }`}
+                          >
+                            <CheckCircle2 className="w-4 h-4 mr-1.5" /> জমা
+                          </button>
+                          <button 
+                            onClick={() => toggleSubmission(student.id, false)}
+                            className={`flex items-center px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                              !isSubmitted 
+                                ? 'bg-red-100 text-red-800 border border-red-200 shadow-sm' 
+                                : 'bg-gray-50 text-gray-500 hover:bg-gray-100 border border-transparent'
+                            }`}
+                          >
+                            <XCircle className="w-4 h-4 mr-1.5" /> দেয়নি
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}

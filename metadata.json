@@ -1,0 +1,5 @@
+{
+  "name": "Student Homework Tracker",
+  "description": "A system for teachers to track student homework submissions, manage student lists, and view performance reports.",
+  "requestFramePermissions": []
+}
