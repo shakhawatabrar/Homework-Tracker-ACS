@@ -44,24 +44,34 @@ export default function HomeworkTracker({ students, records }: Props) {
       submissions: currentSubmissions
     };
 
-    await setDoc(doc(db, 'records', date), newRecord);
-    
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
+    try {
+      await setDoc(doc(db, 'records', date), newRecord);
+      
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (error: any) {
+      console.error("Error saving record:", error);
+      alert("হোমওয়ার্ক সেভ করা যায়নি! Firebase Rules চেক করুন। Error: " + error.message);
+    }
   };
 
   const confirmDeleteRecord = async () => {
     if (!db) return;
-    await deleteDoc(doc(db, 'records', date));
-    setShowDeleteConfirm(false);
-    setShowDeleteSuccess(true);
-    setTimeout(() => setShowDeleteSuccess(false), 3000);
-    
-    const initial: Record<string, boolean> = {};
-    students.forEach(s => {
-      initial[s.id] = false;
-    });
-    setCurrentSubmissions(initial);
+    try {
+      await deleteDoc(doc(db, 'records', date));
+      setShowDeleteConfirm(false);
+      setShowDeleteSuccess(true);
+      setTimeout(() => setShowDeleteSuccess(false), 3000);
+      
+      const initial: Record<string, boolean> = {};
+      students.forEach(s => {
+        initial[s.id] = false;
+      });
+      setCurrentSubmissions(initial);
+    } catch (error: any) {
+      console.error("Error deleting record:", error);
+      alert("রেকর্ড মুছে ফেলা যায়নি! Firebase Rules চেক করুন। Error: " + error.message);
+    }
   };
 
   const recordExists = records.some(r => r.date === date);

@@ -26,10 +26,15 @@ export default function StudentManager({ students }: Props) {
       roll: roll.trim()
     };
     
-    await setDoc(doc(db, 'students', newStudent.id), newStudent);
-    setName('');
-    setRoll('');
-    setIsAdding(false);
+    try {
+      await setDoc(doc(db, 'students', newStudent.id), newStudent);
+      setName('');
+      setRoll('');
+      setIsAdding(false);
+    } catch (error: any) {
+      console.error("Error adding student:", error);
+      alert("ছাত্র যোগ করা যায়নি! Firebase Rules চেক করুন। Error: " + error.message);
+    }
   };
 
   const handleEdit = (student: Student) => {
@@ -42,13 +47,18 @@ export default function StudentManager({ students }: Props) {
     e.preventDefault();
     if (!name.trim() || !roll.trim() || !editingId || !db) return;
     
-    const updatedStudent = students.find(s => s.id === editingId);
-    if (updatedStudent) {
-      await setDoc(doc(db, 'students', editingId), { ...updatedStudent, name: name.trim(), roll: roll.trim() });
+    try {
+      const updatedStudent = students.find(s => s.id === editingId);
+      if (updatedStudent) {
+        await setDoc(doc(db, 'students', editingId), { ...updatedStudent, name: name.trim(), roll: roll.trim() });
+      }
+      setEditingId(null);
+      setName('');
+      setRoll('');
+    } catch (error: any) {
+      console.error("Error updating student:", error);
+      alert("তথ্য আপডেট করা যায়নি! Firebase Rules চেক করুন। Error: " + error.message);
     }
-    setEditingId(null);
-    setName('');
-    setRoll('');
   };
 
   const handleDelete = (id: string) => {
@@ -57,8 +67,13 @@ export default function StudentManager({ students }: Props) {
 
   const confirmDelete = async () => {
     if (deleteConfirmId && db) {
-      await deleteDoc(doc(db, 'students', deleteConfirmId));
-      setDeleteConfirmId(null);
+      try {
+        await deleteDoc(doc(db, 'students', deleteConfirmId));
+        setDeleteConfirmId(null);
+      } catch (error: any) {
+        console.error("Error deleting student:", error);
+        alert("ছাত্র মুছে ফেলা যায়নি! Firebase Rules চেক করুন। Error: " + error.message);
+      }
     }
   };
 

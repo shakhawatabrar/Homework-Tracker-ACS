@@ -21,19 +21,26 @@ export default function App() {
   const [records, setRecords] = useState<HomeworkRecord[]>([]);
 
   useEffect(() => {
-    if (!db) {
-      setIsLoading(false);
+    if (!db || !role) {
       return;
     }
+
+    setIsLoading(true);
 
     const unsubStudents = onSnapshot(collection(db, 'students'), (snapshot) => {
       const studentsData = snapshot.docs.map(doc => doc.data() as Student);
       setStudents(studentsData);
+    }, (error) => {
+      console.error("Firestore error (students):", error);
+      alert("ডাটাবেস থেকে তথ্য আনা যাচ্ছে না! দয়া করে Firebase Firestore Rules চেক করুন।");
     });
 
     const unsubRecords = onSnapshot(collection(db, 'records'), (snapshot) => {
       const recordsData = snapshot.docs.map(doc => doc.data() as HomeworkRecord);
       setRecords(recordsData);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Firestore error (records):", error);
       setIsLoading(false);
     });
 
@@ -41,7 +48,7 @@ export default function App() {
       unsubStudents();
       unsubRecords();
     };
-  }, []);
+  }, [role]);
 
   if (!db) {
     return (
@@ -54,10 +61,6 @@ export default function App() {
         </div>
       </div>
     );
-  }
-
-  if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div></div>;
   }
 
   // --- Login Screen ---
@@ -131,6 +134,10 @@ export default function App() {
         </div>
       </div>
     );
+  }
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div></div>;
   }
 
   const allNavItems = [
