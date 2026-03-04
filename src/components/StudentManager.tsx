@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { Student } from '../types';
 import { Plus, Trash2, Edit2, X, Check, Search } from 'lucide-react';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface Props {
   students: Student[];
-  setStudents: React.Dispatch<React.SetStateAction<Student[]>>;
 }
 
-export default function StudentManager({ students, setStudents }: Props) {
+export default function StudentManager({ students }: Props) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -15,9 +16,9 @@ export default function StudentManager({ students, setStudents }: Props) {
   const [searchTerm, setSearchTerm] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  const handleAdd = (e: React.FormEvent) => {
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !roll.trim()) return;
+    if (!name.trim() || !roll.trim() || !db) return;
     
     const newStudent: Student = {
       id: Date.now().toString(),
@@ -25,7 +26,7 @@ export default function StudentManager({ students, setStudents }: Props) {
       roll: roll.trim()
     };
     
-    setStudents([...students, newStudent]);
+    await setDoc(doc(db, 'students', newStudent.id), newStudent);
     setName('');
     setRoll('');
     setIsAdding(false);
@@ -37,11 +38,14 @@ export default function StudentManager({ students, setStudents }: Props) {
     setRoll(student.roll);
   };
 
-  const handleUpdate = (e: React.FormEvent) => {
+  const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !roll.trim() || !editingId) return;
+    if (!name.trim() || !roll.trim() || !editingId || !db) return;
     
-    setStudents(students.map(s => s.id === editingId ? { ...s, name: name.trim(), roll: roll.trim() } : s));
+    const updatedStudent = students.find(s => s.id === editingId);
+    if (updatedStudent) {
+      await setDoc(doc(db, 'students', editingId), { ...updatedStudent, name: name.trim(), roll: roll.trim() });
+    }
     setEditingId(null);
     setName('');
     setRoll('');
@@ -51,9 +55,9 @@ export default function StudentManager({ students, setStudents }: Props) {
     setDeleteConfirmId(id);
   };
 
-  const confirmDelete = () => {
-    if (deleteConfirmId) {
-      setStudents(students.filter(s => s.id !== deleteConfirmId));
+  const confirmDelete = async () => {
+    if (deleteConfirmId && db) {
+      await deleteDoc(doc(db, 'students', deleteConfirmId));
       setDeleteConfirmId(null);
     }
   };

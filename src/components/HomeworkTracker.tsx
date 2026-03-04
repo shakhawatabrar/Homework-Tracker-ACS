@@ -1,18 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { Student, HomeworkRecord } from '../types';
-import { Calendar as CalendarIcon, CheckCircle2, XCircle, Search } from 'lucide-react';
+import { Calendar as CalendarIcon, CheckCircle2, XCircle, Search, Trash2 } from 'lucide-react';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface Props {
   students: Student[];
   records: HomeworkRecord[];
-  setRecords: React.Dispatch<React.SetStateAction<HomeworkRecord[]>>;
 }
 
-export default function HomeworkTracker({ students, records, setRecords }: Props) {
+export default function HomeworkTracker({ students, records }: Props) {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [currentSubmissions, setCurrentSubmissions] = useState<Record<string, boolean>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
 
   useEffect(() => {
     const record = records.find(r => r.date === date);
@@ -34,25 +37,34 @@ export default function HomeworkTracker({ students, records, setRecords }: Props
     }));
   };
 
-  const handleSave = () => {
-    const existingIndex = records.findIndex(r => r.date === date);
+  const handleSave = async () => {
+    if (!db) return;
     const newRecord: HomeworkRecord = {
       date,
       submissions: currentSubmissions
     };
 
-    if (existingIndex >= 0) {
-      const newRecords = [...records];
-      newRecords[existingIndex] = newRecord;
-      setRecords(newRecords);
-    } else {
-      setRecords([...records, newRecord]);
-    }
+    await setDoc(doc(db, 'records', date), newRecord);
     
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), 3000);
   };
 
+  const confirmDeleteRecord = async () => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'records', date));
+    setShowDeleteConfirm(false);
+    setShowDeleteSuccess(true);
+    setTimeout(() => setShowDeleteSuccess(false), 3000);
+    
+    const initial: Record<string, boolean> = {};
+    students.forEach(s => {
+      initial[s.id] = false;
+    });
+    setCurrentSubmissions(initial);
+  };
+
+  const recordExists = records.some(r => r.date === date);
   const submittedCount = Object.values(currentSubmissions).filter(Boolean).length;
   const missedCount = students.length - submittedCount;
 
@@ -63,10 +75,28 @@ export default function HomeworkTracker({ students, records, setRecords }: Props
 
   return (
     <div className="space-y-6">
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full mx-4">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">নিশ্চিত করুন</h3>
+            <p className="text-gray-600 mb-6">আপনি কি নিশ্চিত যে এই দিনের ({date}) রেকর্ড মুছে ফেলতে চান?</p>
+            <div className="flex justify-end space-x-3">
+              <button onClick={() => setShowDeleteConfirm(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">বাতিল</button>
+              <button onClick={confirmDeleteRecord} className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-xl transition-colors">মুছে ফেলুন</button>
+            </div>
+          </div>
+        </div>
+      )}
       {showSuccess && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl flex items-center shadow-sm">
           <CheckCircle2 className="w-5 h-5 mr-2" />
           হোমওয়ার্ক আপডেট সফলভাবে সেভ করা হয়েছে!
+        </div>
+      )}
+      {showDeleteSuccess && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center shadow-sm">
+          <Trash2 className="w-5 h-5 mr-2" />
+          এই দিনের রেকর্ড সফলভাবে মুছে ফেলা হয়েছে!
         </div>
       )}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -103,12 +133,22 @@ export default function HomeworkTracker({ students, records, setRecords }: Props
             <span>জমা দিয়েছে: <strong className="text-emerald-600">{submittedCount}</strong></span>
             <span>দেয়নি: <strong className="text-red-600">{missedCount}</strong></span>
           </div>
-          <button 
-            onClick={handleSave}
-            className="bg-indigo-600 text-white px-6 py-2 rounded-xl hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm w-full sm:w-auto"
-          >
-            সেভ করুন
-          </button>
+          <div className="flex space-x-2 w-full sm:w-auto">
+            {recordExists && (
+              <button 
+                onClick={() => setShowDeleteConfirm(true)}
+                className="bg-red-100 text-red-700 px-4 py-2 rounded-xl hover:bg-red-200 transition-colors text-sm font-medium shadow-sm flex items-center justify-center w-full sm:w-auto"
+              >
+                <Trash2 className="w-4 h-4 mr-1.5" /> মুছুন
+              </button>
+            )}
+            <button 
+              onClick={handleSave}
+              className="bg-indigo-600 text-white px-6 py-2 rounded-xl hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm w-full sm:w-auto"
+            >
+              সেভ করুন
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
