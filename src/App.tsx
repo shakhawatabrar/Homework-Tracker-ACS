@@ -9,7 +9,9 @@ import HomeworkTracker from './components/HomeworkTracker';
 import Reports from './components/Reports';
 
 export default function App() {
-  const [role, setRole] = useState<'admin' | 'student' | null>(null);
+  const [role, setRole] = useState<'admin' | 'student' | null>(() => {
+    return (localStorage.getItem('hw_role') as 'admin' | 'student' | null) || null;
+  });
   const [pin, setPin] = useState('');
   const [loginError, setLoginError] = useState('');
 
@@ -19,6 +21,14 @@ export default function App() {
   
   const [students, setStudents] = useState<Student[]>([]);
   const [records, setRecords] = useState<HomeworkRecord[]>([]);
+
+  useEffect(() => {
+    if (role) {
+      localStorage.setItem('hw_role', role);
+    } else {
+      localStorage.removeItem('hw_role');
+    }
+  }, [role]);
 
   useEffect(() => {
     if (!db || !role) {
