@@ -101,14 +101,14 @@ export default function App() {
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
-                      if(pin === 'ACS12ADMIN') setRole('admin');
+                      if(pin === 'ONLYADMIN12') setRole('admin');
                       else setLoginError('ভুল পাসওয়ার্ড!');
                     }
                   }}
                 />
                 <button 
                   onClick={() => {
-                    if(pin === 'ACS12ADMIN') setRole('admin');
+                    if(pin === 'ONLYADMIN12') setRole('admin');
                     else setLoginError('ভুল পাসওয়ার্ড!');
                   }}
                   className="w-full bg-indigo-600 text-white px-4 py-2.5 rounded-xl hover:bg-indigo-700 transition-colors font-medium shadow-sm"
