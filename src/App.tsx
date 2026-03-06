@@ -17,6 +17,8 @@ export default function App() {
   });
   const [pin, setPin] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [studentRoll, setStudentRoll] = useState('');
+  const [studentLoginError, setStudentLoginError] = useState('');
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -37,19 +39,25 @@ export default function App() {
   }, [role]);
 
   useEffect(() => {
-    if (!db || !role) {
-      return;
-    }
-
-    setIsLoading(true);
+    if (!db) return;
 
     const unsubStudents = onSnapshot(collection(db, 'students'), (snapshot) => {
       const studentsData = snapshot.docs.map(doc => doc.data() as Student);
       setStudents(studentsData);
     }, (error) => {
       console.error("Firestore error (students):", error);
-      alert("ডাটাবেস থেকে তথ্য আনা যাচ্ছে না! দয়া করে Firebase Firestore Rules চেক করুন।");
     });
+
+    return () => unsubStudents();
+  }, []);
+
+  useEffect(() => {
+    if (!db || !role) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
 
     const unsubRecords = onSnapshot(collection(db, 'records'), (snapshot) => {
       const recordsData = snapshot.docs.map(doc => doc.data() as HomeworkRecord);
@@ -82,7 +90,6 @@ export default function App() {
     });
 
     return () => {
-      unsubStudents();
       unsubRecords();
       unsubNotices();
       unsubModules();
@@ -102,6 +109,22 @@ export default function App() {
       </div>
     );
   }
+
+  const handleStudentLogin = () => {
+    if (!studentRoll.trim()) {
+      setStudentLoginError('দয়া করে আপনার রোল নম্বর দিন!');
+      return;
+    }
+    
+    const studentExists = students.some(s => s.roll === studentRoll.trim());
+    
+    if (studentExists) {
+      setRole('student');
+      setActiveTab('dashboard');
+    } else {
+      setStudentLoginError('এই রোল নম্বরটি তালিকায় পাওয়া যায়নি!');
+    }
+  };
 
   // --- Login Screen ---
   if (!role) {
@@ -160,15 +183,27 @@ export default function App() {
               <h3 className="font-semibold flex items-center text-gray-800 mb-4">
                 <User className="w-4 h-4 mr-2 text-emerald-600" /> ছাত্র
               </h3>
-              <button 
-                onClick={() => {
-                  setRole('student');
-                  setActiveTab('dashboard');
-                }}
-                className="w-full bg-emerald-100 text-emerald-800 px-4 py-2.5 rounded-xl hover:bg-emerald-200 transition-colors font-medium"
-              >
-                শুধুমাত্র দেখতে প্রবেশ করুন
-              </button>
+              <div className="flex flex-col space-y-3">
+                <input 
+                  type="text" 
+                  placeholder="আপনার রোল নম্বর দিন" 
+                  value={studentRoll}
+                  onChange={(e) => {setStudentRoll(e.target.value); setStudentLoginError('');}}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleStudentLogin();
+                    }
+                  }}
+                />
+                <button 
+                  onClick={handleStudentLogin}
+                  className="w-full bg-emerald-600 text-white px-4 py-2.5 rounded-xl hover:bg-emerald-700 transition-colors font-medium shadow-sm"
+                >
+                  লগইন করুন
+                </button>
+              </div>
+              {studentLoginError && <p className="text-red-500 text-sm mt-3 text-center font-medium">{studentLoginError}</p>}
             </div>
           </div>
         </div>
@@ -195,6 +230,7 @@ export default function App() {
   const handleLogout = () => {
     setRole(null);
     setPin('');
+    setStudentRoll('');
     setActiveTab('dashboard');
   };
 
