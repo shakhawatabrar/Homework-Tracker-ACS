@@ -155,7 +155,7 @@ export default function ClassModuleBoard({ modules, role }: Props) {
                 {role === 'admin' && (
                   <button 
                     onClick={() => setDeleteConfirmId(module.id)}
-                    className="text-gray-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 flex-shrink-0"
+                    className="text-red-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors focus:outline-none flex-shrink-0"
                     title="মুছে ফেলুন"
                   >
                     <Trash2 className="w-5 h-5" />
