@@ -83,6 +83,9 @@ export default function HomeworkTracker({ students, records }: Props) {
     student.roll.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const submittedStudents = filteredStudents.filter(s => currentSubmissions[s.id]).sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true}));
+  const notSubmittedStudents = filteredStudents.filter(s => !currentSubmissions[s.id]).sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true}));
+
   return (
     <div className="space-y-6">
       {showDeleteConfirm && (
@@ -161,57 +164,62 @@ export default function HomeworkTracker({ students, records }: Props) {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-white border-b border-gray-100">
-                <th className="p-4 font-semibold text-gray-600 w-24">রোল</th>
-                <th className="p-4 font-semibold text-gray-600">নাম</th>
-                <th className="p-4 font-semibold text-gray-600 text-center w-56">স্ট্যাটাস</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredStudents.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="p-8 text-center text-gray-500">কোনো ছাত্রের তথ্য পাওয়া যায়নি।</td>
-                </tr>
+        <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
+          {/* Not Submitted Column */}
+          <div className="p-4 bg-red-50/30">
+            <h3 className="font-bold text-red-700 mb-4 flex items-center text-lg">
+              <XCircle className="w-5 h-5 mr-2" /> 
+              জমা দেয়নি ({notSubmittedStudents.length})
+            </h3>
+            <div className="space-y-3">
+              {notSubmittedStudents.length === 0 ? (
+                <p className="text-gray-500 text-sm text-center py-4">সবাই জমা দিয়েছে!</p>
               ) : (
-                filteredStudents.sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true})).map(student => {
-                  const isSubmitted = currentSubmissions[student.id] || false;
-                  return (
-                    <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50/80 transition-colors">
-                      <td className="p-4 text-gray-800 font-mono text-sm">{student.roll}</td>
-                      <td className="p-4 text-gray-800 font-medium">{student.name}</td>
-                      <td className="p-4">
-                        <div className="flex justify-center space-x-2">
-                          <button 
-                            onClick={() => toggleSubmission(student.id, true)}
-                            className={`flex items-center px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                              isSubmitted 
-                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-sm' 
-                                : 'bg-gray-50 text-gray-500 hover:bg-gray-100 border border-transparent'
-                            }`}
-                          >
-                            <CheckCircle2 className="w-4 h-4 mr-1.5" /> জমা
-                          </button>
-                          <button 
-                            onClick={() => toggleSubmission(student.id, false)}
-                            className={`flex items-center px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                              !isSubmitted 
-                                ? 'bg-red-100 text-red-800 border border-red-200 shadow-sm' 
-                                : 'bg-gray-50 text-gray-500 hover:bg-gray-100 border border-transparent'
-                            }`}
-                          >
-                            <XCircle className="w-4 h-4 mr-1.5" /> দেয়নি
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
+                notSubmittedStudents.map(student => (
+                  <div key={student.id} className="bg-white p-3 rounded-xl border border-red-100 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
+                    <div>
+                      <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded-md mr-2">রোল: {student.roll}</span>
+                      <span className="font-medium text-gray-800">{student.name}</span>
+                    </div>
+                    <button 
+                      onClick={() => toggleSubmission(student.id, true)}
+                      className="flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-50 text-gray-600 hover:bg-emerald-100 hover:text-emerald-700 border border-gray-200 hover:border-emerald-200 transition-all"
+                    >
+                      <CheckCircle2 className="w-4 h-4 mr-1.5" /> জমা নিন
+                    </button>
+                  </div>
+                ))
               )}
-            </tbody>
-          </table>
+            </div>
+          </div>
+
+          {/* Submitted Column */}
+          <div className="p-4 bg-emerald-50/30">
+            <h3 className="font-bold text-emerald-700 mb-4 flex items-center text-lg">
+              <CheckCircle2 className="w-5 h-5 mr-2" /> 
+              জমা দিয়েছে ({submittedStudents.length})
+            </h3>
+            <div className="space-y-3">
+              {submittedStudents.length === 0 ? (
+                <p className="text-gray-500 text-sm text-center py-4">কেউ জমা দেয়নি!</p>
+              ) : (
+                submittedStudents.map(student => (
+                  <div key={student.id} className="bg-white p-3 rounded-xl border border-emerald-100 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
+                    <div>
+                      <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded-md mr-2">রোল: {student.roll}</span>
+                      <span className="font-medium text-gray-800">{student.name}</span>
+                    </div>
+                    <button 
+                      onClick={() => toggleSubmission(student.id, false)}
+                      className="flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-50 text-emerald-700 hover:bg-red-100 hover:text-red-700 border border-emerald-200 hover:border-red-200 transition-all"
+                    >
+                      <XCircle className="w-4 h-4 mr-1.5" /> বাতিল করুন
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
