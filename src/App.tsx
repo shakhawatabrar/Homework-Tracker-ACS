@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, BookOpenCheck, BarChart3, Menu, X, Lock, User, LogOut, Bell, BookOpen } from 'lucide-react';
-import { Student, HomeworkRecord, Notice, ClassModule } from './types';
+import { LayoutDashboard, Users, BookOpenCheck, BarChart3, Menu, X, Lock, User, LogOut, Bell, BookOpen, Shield } from 'lucide-react';
+import { Student, HomeworkRecord, Notice, ClassModule, TeamRule } from './types';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import Dashboard from './components/Dashboard';
@@ -9,6 +9,7 @@ import HomeworkTracker from './components/HomeworkTracker';
 import Reports from './components/Reports';
 import NoticeBoard from './components/NoticeBoard';
 import ClassModuleBoard from './components/ClassModuleBoard';
+import TeamRulesBoard from './components/TeamRulesBoard';
 
 export default function App() {
   const [role, setRole] = useState<'admin' | 'student' | null>(() => {
@@ -25,6 +26,7 @@ export default function App() {
   const [records, setRecords] = useState<HomeworkRecord[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [modules, setModules] = useState<ClassModule[]>([]);
+  const [rules, setRules] = useState<TeamRule[]>([]);
 
   useEffect(() => {
     if (role) {
@@ -72,11 +74,19 @@ export default function App() {
       console.error("Firestore error (modules):", error);
     });
 
+    const unsubRules = onSnapshot(collection(db, 'rules'), (snapshot) => {
+      const rulesData = snapshot.docs.map(doc => doc.data() as TeamRule);
+      setRules(rulesData.sort((a, b) => a.timestamp - b.timestamp));
+    }, (error) => {
+      console.error("Firestore error (rules):", error);
+    });
+
     return () => {
       unsubStudents();
       unsubRecords();
       unsubNotices();
       unsubModules();
+      unsubRules();
     };
   }, [role]);
 
@@ -174,6 +184,7 @@ export default function App() {
     { id: 'dashboard', label: 'ড্যাশবোর্ড', icon: <LayoutDashboard className="w-5 h-5" />, roles: ['admin', 'student'] },
     { id: 'notices', label: 'নোটিশ', icon: <Bell className="w-5 h-5" />, roles: ['admin', 'student'] },
     { id: 'modules', label: 'ক্লাস মডিউল', icon: <BookOpen className="w-5 h-5" />, roles: ['admin', 'student'] },
+    { id: 'rules', label: 'টিমের নিয়মকানুন', icon: <Shield className="w-5 h-5" />, roles: ['admin', 'student'] },
     { id: 'students', label: 'ছাত্র', icon: <Users className="w-5 h-5" />, roles: ['admin'] },
     { id: 'homework', label: 'হোমওয়ার্ক', icon: <BookOpenCheck className="w-5 h-5" />, roles: ['admin'] },
     { id: 'reports', label: 'রিপোর্ট', icon: <BarChart3 className="w-5 h-5" />, roles: ['admin', 'student'] },
@@ -195,6 +206,8 @@ export default function App() {
         return <NoticeBoard notices={notices} role={role} />;
       case 'modules':
         return <ClassModuleBoard modules={modules} role={role} />;
+      case 'rules':
+        return <TeamRulesBoard rules={rules} role={role} />;
       case 'students':
         return role === 'admin' ? <StudentManager students={students} /> : null;
       case 'homework':

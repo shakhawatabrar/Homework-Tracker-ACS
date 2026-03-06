@@ -21,6 +21,13 @@ export interface ClassModule {
   timestamp: number;
 }
 
+export interface TeamRule {
+  id: string;
+  title: string;
+  content: string;
+  timestamp: number;
+}
+
 export interface HomeworkRecord {
   date: string; // YYYY-MM-DD
   submissions: Record<string, boolean>; // studentId -> isSubmitted
