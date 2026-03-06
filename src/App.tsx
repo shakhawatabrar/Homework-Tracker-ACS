@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, BookOpenCheck, BarChart3, Menu, X, Lock, User, LogOut } from 'lucide-react';
-import { Student, HomeworkRecord } from './types';
+import { LayoutDashboard, Users, BookOpenCheck, BarChart3, Menu, X, Lock, User, LogOut, Bell, BookOpen } from 'lucide-react';
+import { Student, HomeworkRecord, Notice, ClassModule } from './types';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import Dashboard from './components/Dashboard';
 import StudentManager from './components/StudentManager';
 import HomeworkTracker from './components/HomeworkTracker';
 import Reports from './components/Reports';
+import NoticeBoard from './components/NoticeBoard';
+import ClassModuleBoard from './components/ClassModuleBoard';
 
 export default function App() {
   const [role, setRole] = useState<'admin' | 'student' | null>(() => {
@@ -21,6 +23,8 @@ export default function App() {
   
   const [students, setStudents] = useState<Student[]>([]);
   const [records, setRecords] = useState<HomeworkRecord[]>([]);
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [modules, setModules] = useState<ClassModule[]>([]);
 
   useEffect(() => {
     if (role) {
@@ -54,9 +58,25 @@ export default function App() {
       setIsLoading(false);
     });
 
+    const unsubNotices = onSnapshot(collection(db, 'notices'), (snapshot) => {
+      const noticesData = snapshot.docs.map(doc => doc.data() as Notice);
+      setNotices(noticesData.sort((a, b) => b.timestamp - a.timestamp));
+    }, (error) => {
+      console.error("Firestore error (notices):", error);
+    });
+
+    const unsubModules = onSnapshot(collection(db, 'modules'), (snapshot) => {
+      const modulesData = snapshot.docs.map(doc => doc.data() as ClassModule);
+      setModules(modulesData.sort((a, b) => b.timestamp - a.timestamp));
+    }, (error) => {
+      console.error("Firestore error (modules):", error);
+    });
+
     return () => {
       unsubStudents();
       unsubRecords();
+      unsubNotices();
+      unsubModules();
     };
   }, [role]);
 
@@ -152,6 +172,8 @@ export default function App() {
 
   const allNavItems = [
     { id: 'dashboard', label: 'ড্যাশবোর্ড', icon: <LayoutDashboard className="w-5 h-5" />, roles: ['admin', 'student'] },
+    { id: 'notices', label: 'নোটিশ', icon: <Bell className="w-5 h-5" />, roles: ['admin', 'student'] },
+    { id: 'modules', label: 'ক্লাস মডিউল', icon: <BookOpen className="w-5 h-5" />, roles: ['admin', 'student'] },
     { id: 'students', label: 'ছাত্র', icon: <Users className="w-5 h-5" />, roles: ['admin'] },
     { id: 'homework', label: 'হোমওয়ার্ক', icon: <BookOpenCheck className="w-5 h-5" />, roles: ['admin'] },
     { id: 'reports', label: 'রিপোর্ট', icon: <BarChart3 className="w-5 h-5" />, roles: ['admin', 'student'] },
@@ -169,6 +191,10 @@ export default function App() {
     switch (activeTab) {
       case 'dashboard':
         return <Dashboard students={students} records={records} onNavigate={setActiveTab} />;
+      case 'notices':
+        return <NoticeBoard notices={notices} role={role} />;
+      case 'modules':
+        return <ClassModuleBoard modules={modules} role={role} />;
       case 'students':
         return role === 'admin' ? <StudentManager students={students} /> : null;
       case 'homework':

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Student, HomeworkRecord } from '../types';
-import { Search } from 'lucide-react';
+import { Search, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface Props {
   students: Student[];
@@ -33,6 +33,14 @@ export default function Reports({ students, records }: Props) {
     student.roll.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const studentStats = filteredStudents.map(student => ({
+    ...student,
+    ...getStudentStats(student.id)
+  }));
+
+  const regularStudents = studentStats.filter(s => s.missRatio < 20).sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true}));
+  const irregularStudents = studentStats.filter(s => s.missRatio >= 20).sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true}));
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -56,46 +64,76 @@ export default function Reports({ students, records }: Props) {
           <p className="text-sm text-gray-600">মোট ট্র্যাক করা দিন: <span className="font-bold text-indigo-600 text-lg ml-1">{totalDays}</span></p>
         </div>
         
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-white border-b border-gray-100">
-                <th className="p-4 font-semibold text-gray-600 w-24">রোল</th>
-                <th className="p-4 font-semibold text-gray-600">নাম</th>
-                <th className="p-4 font-semibold text-gray-600 text-center">জমা দিয়েছে</th>
-                <th className="p-4 font-semibold text-gray-600 text-center">দেয়নি</th>
-                <th className="p-4 font-semibold text-gray-600 text-center">না দেওয়ার হার</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredStudents.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="p-8 text-center text-gray-500">কোনো তথ্য পাওয়া যায়নি।</td>
-                </tr>
+        <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
+          {/* Irregular Column */}
+          <div className="p-4 bg-red-50/30">
+            <h3 className="font-bold text-red-700 mb-4 flex items-center text-lg">
+              <AlertTriangle className="w-5 h-5 mr-2" /> 
+              অনিয়মিত ছাত্র ({irregularStudents.length})
+            </h3>
+            <p className="text-xs text-red-600/80 mb-4">যাদের না দেওয়ার হার ২০% বা তার বেশি</p>
+            <div className="space-y-3">
+              {irregularStudents.length === 0 ? (
+                <p className="text-gray-500 text-sm text-center py-4">সবাই নিয়মিত!</p>
               ) : (
-                filteredStudents.sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true})).map(student => {
-                  const stats = getStudentStats(student.id);
-                  return (
-                    <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50/80 transition-colors">
-                      <td className="p-4 text-gray-800 font-mono text-sm">{student.roll}</td>
-                      <td className="p-4 text-gray-800 font-medium">{student.name}</td>
-                      <td className="p-4 text-center text-emerald-600 font-medium">{stats.submitted} বার</td>
-                      <td className="p-4 text-center text-red-600 font-medium">{stats.missed} বার</td>
-                      <td className="p-4 text-center">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                          stats.missRatio >= 50 ? 'bg-red-100 text-red-800' : 
-                          stats.missRatio >= 20 ? 'bg-amber-100 text-amber-800' : 
-                          'bg-emerald-100 text-emerald-800'
-                        }`}>
-                          {stats.missRatio}%
+                irregularStudents.map(student => (
+                  <div key={student.id} className="bg-white p-3 rounded-xl border border-red-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:shadow-md transition-all">
+                    <div>
+                      <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded-md mr-2">রোল: {student.roll}</span>
+                      <span className="font-medium text-gray-800">{student.name}</span>
+                    </div>
+                    <div className="flex items-center space-x-3 text-sm">
+                      <div className="text-center">
+                        <span className="block text-xs text-gray-500">দেয়নি</span>
+                        <span className="font-bold text-red-600">{student.missed}</span>
+                      </div>
+                      <div className="text-center">
+                        <span className="block text-xs text-gray-500">হার</span>
+                        <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${student.missRatio >= 50 ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
+                          {student.missRatio}%
                         </span>
-                      </td>
-                    </tr>
-                  );
-                })
+                      </div>
+                    </div>
+                  </div>
+                ))
               )}
-            </tbody>
-          </table>
+            </div>
+          </div>
+
+          {/* Regular Column */}
+          <div className="p-4 bg-emerald-50/30">
+            <h3 className="font-bold text-emerald-700 mb-4 flex items-center text-lg">
+              <CheckCircle2 className="w-5 h-5 mr-2" /> 
+              নিয়মিত ছাত্র ({regularStudents.length})
+            </h3>
+            <p className="text-xs text-emerald-600/80 mb-4">যাদের না দেওয়ার হার ২০% এর কম</p>
+            <div className="space-y-3">
+              {regularStudents.length === 0 ? (
+                <p className="text-gray-500 text-sm text-center py-4">কেউ নিয়মিত নয়!</p>
+              ) : (
+                regularStudents.map(student => (
+                  <div key={student.id} className="bg-white p-3 rounded-xl border border-emerald-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:shadow-md transition-all">
+                    <div>
+                      <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded-md mr-2">রোল: {student.roll}</span>
+                      <span className="font-medium text-gray-800">{student.name}</span>
+                    </div>
+                    <div className="flex items-center space-x-3 text-sm">
+                      <div className="text-center">
+                        <span className="block text-xs text-gray-500">দিয়েছে</span>
+                        <span className="font-bold text-emerald-600">{student.submitted}</span>
+                      </div>
+                      <div className="text-center">
+                        <span className="block text-xs text-gray-500">হার</span>
+                        <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-100 text-emerald-800">
+                          {student.missRatio}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
