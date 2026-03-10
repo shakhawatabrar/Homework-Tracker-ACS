@@ -85,7 +85,7 @@ const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Ex
       content += `রোল: ${s.roll} - ${s.name}\n`;
     });
 
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const blob = new Blob(['\uFEFF' + content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
