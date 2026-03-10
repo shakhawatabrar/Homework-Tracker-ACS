@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Student, Exam } from '../types';
-import { FileText, Plus, Trash2, Eye, EyeOff, Save, CheckCircle2, XCircle, AlertTriangle, Search, Star, Copy } from 'lucide-react';
+import { FileText, Plus, Trash2, Eye, EyeOff, Save, CheckCircle2, XCircle, AlertTriangle, Search, Star, Copy, Download } from 'lucide-react';
 import { doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+// @ts-ignore
+import html2pdf from 'html2pdf.js';
 
 const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Exam[], students: Student[], role: string }) => {
   const [marks, setMarks] = useState<Record<string, number | null>>(exam.marks || {});
@@ -64,6 +66,103 @@ const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Ex
 
   const presentStudentsList = filteredStudents.filter(s => marks[s.id] !== null && marks[s.id] !== undefined);
   const absentStudentsList = filteredStudents.filter(s => marks[s.id] === null || marks[s.id] === undefined);
+
+  const downloadTxt = () => {
+    let content = `পরীক্ষার ফলাফল - ${exam.title}\n`;
+    content += `তারিখ: ${exam.date}\n\n`;
+    
+    content += `উপস্থিত (${presentStudentsList.length} জন):\n`;
+    content += `----------------------------------------\n`;
+    presentStudentsList.forEach(s => {
+      const mark = marks[s.id];
+      const markText = mark === 1 ? '৩৩' : mark === 2 ? '৭০' : mark === 3 ? '১০০' : '০';
+      content += `রোল: ${s.roll} - ${s.name} (প্রাপ্ত নম্বর: ${markText})\n`;
+    });
+    
+    content += `\nঅনুপস্থিত (${absentStudentsList.length} জন):\n`;
+    content += `----------------------------------------\n`;
+    absentStudentsList.forEach(s => {
+      content += `রোল: ${s.roll} - ${s.name}\n`;
+    });
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `exam_${exam.title}_${exam.date}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadPdf = () => {
+    const element = document.createElement('div');
+    element.innerHTML = `
+      <div style="font-family: sans-serif; padding: 40px; color: #1f2937;">
+        <h2 style="text-align: center; color: #4f46e5; margin-bottom: 5px; font-size: 24px;">পরীক্ষার ফলাফল</h2>
+        <h3 style="text-align: center; color: #374151; margin-bottom: 5px; font-size: 18px;">${exam.title}</h3>
+        <p style="text-align: center; color: #6b7280; margin-bottom: 30px; font-size: 16px;">তারিখ: ${exam.date}</p>
+        
+        <div style="margin-bottom: 30px;">
+          <h3 style="color: #059669; border-bottom: 2px solid #059669; padding-bottom: 8px; margin-bottom: 15px; font-size: 18px;">
+            উপস্থিত (${presentStudentsList.length} জন)
+          </h3>
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background-color: #f3f4f6;">
+                <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb; width: 80px;">রোল</th>
+                <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">নাম</th>
+                <th style="padding: 10px; text-align: center; border: 1px solid #e5e7eb; width: 120px;">প্রাপ্ত নম্বর</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${presentStudentsList.length > 0 ? presentStudentsList.map(s => {
+                const mark = marks[s.id];
+                const markText = mark === 1 ? '৩৩' : mark === 2 ? '৭০' : mark === 3 ? '১০০' : '০';
+                return `
+                <tr>
+                  <td style="padding: 8px 10px; border: 1px solid #e5e7eb; font-family: monospace;">${s.roll}</td>
+                  <td style="padding: 8px 10px; border: 1px solid #e5e7eb;">${s.name}</td>
+                  <td style="padding: 8px 10px; border: 1px solid #e5e7eb; text-align: center; font-weight: bold;">${markText}</td>
+                </tr>
+              `}).join('') : `<tr><td colspan="3" style="padding: 10px; text-align: center; border: 1px solid #e5e7eb; color: #6b7280;">কেউ উপস্থিত ছিল না</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+
+        <div>
+          <h3 style="color: #dc2626; border-bottom: 2px solid #dc2626; padding-bottom: 8px; margin-bottom: 15px; font-size: 18px;">
+            অনুপস্থিত (${absentStudentsList.length} জন)
+          </h3>
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background-color: #f3f4f6;">
+                <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb; width: 80px;">রোল</th>
+                <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">নাম</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${absentStudentsList.length > 0 ? absentStudentsList.map(s => `
+                <tr>
+                  <td style="padding: 8px 10px; border: 1px solid #e5e7eb; font-family: monospace;">${s.roll}</td>
+                  <td style="padding: 8px 10px; border: 1px solid #e5e7eb;">${s.name}</td>
+                </tr>
+              `).join('') : `<tr><td colspan="2" style="padding: 10px; text-align: center; border: 1px solid #e5e7eb; color: #6b7280;">সবাই উপস্থিত ছিল</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    const opt = {
+      margin:       10,
+      filename:     `exam_${exam.title}_${exam.date}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(opt).from(element).save();
+  };
 
   const renderStudentRow = (student: Student) => {
     const studentMark = marks[student.id];
@@ -168,6 +267,20 @@ const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Ex
 
         {role === 'admin' && (
           <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+            <button 
+              onClick={downloadTxt}
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              title="TXT ডাউনলোড করুন"
+            >
+              <FileText className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={downloadPdf}
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              title="PDF ডাউনলোড করুন"
+            >
+              <Download className="w-5 h-5" />
+            </button>
             <button
               onClick={handleTogglePublish}
               className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center ${exam.isPublished ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}

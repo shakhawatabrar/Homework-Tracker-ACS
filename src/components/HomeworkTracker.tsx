@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Student, HomeworkRecord } from '../types';
-import { Calendar as CalendarIcon, CheckCircle2, XCircle, Search, Trash2, Copy } from 'lucide-react';
+import { Calendar as CalendarIcon, CheckCircle2, XCircle, Search, Trash2, Copy, Download, FileText } from 'lucide-react';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+// @ts-ignore
+import html2pdf from 'html2pdf.js';
 
 interface Props {
   students: Student[];
@@ -86,6 +88,94 @@ export default function HomeworkTracker({ students, records }: Props) {
   const submittedStudents = filteredStudents.filter(s => currentSubmissions[s.id]).sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true}));
   const notSubmittedStudents = filteredStudents.filter(s => !currentSubmissions[s.id]).sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true}));
 
+  const downloadTxt = () => {
+    let content = `হোমওয়ার্ক রিপোর্ট - তারিখ: ${date}\n\n`;
+    
+    content += `জমা দিয়েছে (${submittedStudents.length} জন):\n`;
+    content += `----------------------------------------\n`;
+    submittedStudents.forEach(s => {
+      content += `রোল: ${s.roll} - ${s.name}\n`;
+    });
+    
+    content += `\nজমা দেয়নি (${notSubmittedStudents.length} জন):\n`;
+    content += `----------------------------------------\n`;
+    notSubmittedStudents.forEach(s => {
+      content += `রোল: ${s.roll} - ${s.name}\n`;
+    });
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `homework_${date}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadPdf = () => {
+    const element = document.createElement('div');
+    element.innerHTML = `
+      <div style="font-family: sans-serif; padding: 40px; color: #1f2937;">
+        <h2 style="text-align: center; color: #4f46e5; margin-bottom: 5px; font-size: 24px;">হোমওয়ার্ক রিপোর্ট</h2>
+        <p style="text-align: center; color: #6b7280; margin-bottom: 30px; font-size: 16px;">তারিখ: ${date}</p>
+        
+        <div style="margin-bottom: 30px;">
+          <h3 style="color: #059669; border-bottom: 2px solid #059669; padding-bottom: 8px; margin-bottom: 15px; font-size: 18px;">
+            জমা দিয়েছে (${submittedStudents.length} জন)
+          </h3>
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background-color: #f3f4f6;">
+                <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb; width: 80px;">রোল</th>
+                <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">নাম</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${submittedStudents.length > 0 ? submittedStudents.map(s => `
+                <tr>
+                  <td style="padding: 8px 10px; border: 1px solid #e5e7eb; font-family: monospace;">${s.roll}</td>
+                  <td style="padding: 8px 10px; border: 1px solid #e5e7eb;">${s.name}</td>
+                </tr>
+              `).join('') : `<tr><td colspan="2" style="padding: 10px; text-align: center; border: 1px solid #e5e7eb; color: #6b7280;">কেউ জমা দেয়নি</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+
+        <div>
+          <h3 style="color: #dc2626; border-bottom: 2px solid #dc2626; padding-bottom: 8px; margin-bottom: 15px; font-size: 18px;">
+            জমা দেয়নি (${notSubmittedStudents.length} জন)
+          </h3>
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background-color: #f3f4f6;">
+                <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb; width: 80px;">রোল</th>
+                <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">নাম</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${notSubmittedStudents.length > 0 ? notSubmittedStudents.map(s => `
+                <tr>
+                  <td style="padding: 8px 10px; border: 1px solid #e5e7eb; font-family: monospace;">${s.roll}</td>
+                  <td style="padding: 8px 10px; border: 1px solid #e5e7eb;">${s.name}</td>
+                </tr>
+              `).join('') : `<tr><td colspan="2" style="padding: 10px; text-align: center; border: 1px solid #e5e7eb; color: #6b7280;">সবাই জমা দিয়েছে</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    const opt = {
+      margin:       10,
+      filename:     `homework_${date}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(opt).from(element).save();
+  };
+
   return (
     <div className="space-y-6">
       {showDeleteConfirm && (
@@ -146,18 +236,32 @@ export default function HomeworkTracker({ students, records }: Props) {
             <span>জমা দিয়েছে: <strong className="text-emerald-600">{submittedCount}</strong></span>
             <span>দেয়নি: <strong className="text-red-600">{missedCount}</strong></span>
           </div>
-          <div className="flex space-x-2 w-full sm:w-auto">
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            <button 
+              onClick={downloadTxt}
+              className="bg-gray-100 text-gray-700 px-4 py-2 rounded-xl hover:bg-gray-200 transition-colors text-sm font-medium shadow-sm flex items-center justify-center flex-1 sm:flex-none"
+              title="TXT ডাউনলোড করুন"
+            >
+              <FileText className="w-4 h-4 mr-1.5" /> TXT
+            </button>
+            <button 
+              onClick={downloadPdf}
+              className="bg-gray-100 text-gray-700 px-4 py-2 rounded-xl hover:bg-gray-200 transition-colors text-sm font-medium shadow-sm flex items-center justify-center flex-1 sm:flex-none"
+              title="PDF ডাউনলোড করুন"
+            >
+              <Download className="w-4 h-4 mr-1.5" /> PDF
+            </button>
             {recordExists && (
               <button 
                 onClick={() => setShowDeleteConfirm(true)}
-                className="bg-red-100 text-red-700 px-4 py-2 rounded-xl hover:bg-red-200 transition-colors text-sm font-medium shadow-sm flex items-center justify-center w-full sm:w-auto"
+                className="bg-red-100 text-red-700 px-4 py-2 rounded-xl hover:bg-red-200 transition-colors text-sm font-medium shadow-sm flex items-center justify-center flex-1 sm:flex-none"
               >
                 <Trash2 className="w-4 h-4 mr-1.5" /> মুছুন
               </button>
             )}
             <button 
               onClick={handleSave}
-              className="bg-indigo-600 text-white px-6 py-2 rounded-xl hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm w-full sm:w-auto"
+              className="bg-indigo-600 text-white px-6 py-2 rounded-xl hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm flex-1 sm:flex-none"
             >
               সেভ করুন
             </button>
