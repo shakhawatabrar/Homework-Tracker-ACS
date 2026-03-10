@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, BookOpenCheck, BarChart3, Menu, X, Lock, User, LogOut, Bell, BookOpen, Shield } from 'lucide-react';
-import { Student, HomeworkRecord, Notice, ClassModule, TeamRule } from './types';
+import { LayoutDashboard, Users, BookOpenCheck, BarChart3, Menu, X, Lock, User, LogOut, Bell, BookOpen, Shield, FileText } from 'lucide-react';
+import { Student, HomeworkRecord, Notice, ClassModule, TeamRule, Exam } from './types';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import Dashboard from './components/Dashboard';
@@ -10,6 +10,7 @@ import Reports from './components/Reports';
 import NoticeBoard from './components/NoticeBoard';
 import ClassModuleBoard from './components/ClassModuleBoard';
 import TeamRulesBoard from './components/TeamRulesBoard';
+import ExamTracker from './components/ExamTracker';
 
 export default function App() {
   const [role, setRole] = useState<'admin' | 'student' | null>(() => {
@@ -29,6 +30,7 @@ export default function App() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [modules, setModules] = useState<ClassModule[]>([]);
   const [rules, setRules] = useState<TeamRule[]>([]);
+  const [exams, setExams] = useState<Exam[]>([]);
 
   useEffect(() => {
     if (role) {
@@ -89,11 +91,19 @@ export default function App() {
       console.error("Firestore error (rules):", error);
     });
 
+    const unsubExams = onSnapshot(collection(db, 'exams'), (snapshot) => {
+      const examsData = snapshot.docs.map(doc => doc.data() as Exam);
+      setExams(examsData.sort((a, b) => b.timestamp - a.timestamp));
+    }, (error) => {
+      console.error("Firestore error (exams):", error);
+    });
+
     return () => {
       unsubRecords();
       unsubNotices();
       unsubModules();
       unsubRules();
+      unsubExams();
     };
   }, [role]);
 
@@ -220,6 +230,7 @@ export default function App() {
     { id: 'notices', label: 'নোটিশ', icon: <Bell className="w-5 h-5" />, roles: ['admin', 'student'] },
     { id: 'modules', label: 'ক্লাস মডিউল', icon: <BookOpen className="w-5 h-5" />, roles: ['admin', 'student'] },
     { id: 'rules', label: 'টিমের নিয়মকানুন', icon: <Shield className="w-5 h-5" />, roles: ['admin', 'student'] },
+    { id: 'exams', label: 'পরীক্ষা', icon: <FileText className="w-5 h-5" />, roles: ['admin', 'student'] },
     { id: 'students', label: 'ছাত্র', icon: <Users className="w-5 h-5" />, roles: ['admin'] },
     { id: 'homework', label: 'হোমওয়ার্ক', icon: <BookOpenCheck className="w-5 h-5" />, roles: ['admin'] },
     { id: 'reports', label: 'রিপোর্ট', icon: <BarChart3 className="w-5 h-5" />, roles: ['admin', 'student'] },
@@ -244,6 +255,8 @@ export default function App() {
         return <ClassModuleBoard modules={modules} role={role} />;
       case 'rules':
         return <TeamRulesBoard rules={rules} role={role} />;
+      case 'exams':
+        return <ExamTracker students={students} exams={exams} role={role} />;
       case 'students':
         return role === 'admin' ? <StudentManager students={students} /> : null;
       case 'homework':

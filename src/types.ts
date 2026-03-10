@@ -28,6 +28,16 @@ export interface TeamRule {
   timestamp: number;
 }
 
+export interface Exam {
+  id: string;
+  title: string;
+  date: string;
+  totalMarks: number;
+  isPublished: boolean;
+  marks: Record<string, number | null>; // studentId -> marks (null means absent)
+  timestamp: number;
+}
+
 export interface HomeworkRecord {
   date: string; // YYYY-MM-DD
   submissions: Record<string, boolean>; // studentId -> isSubmitted
