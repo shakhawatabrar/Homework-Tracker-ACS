@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Student, HomeworkRecord } from '../types';
-import { Calendar as CalendarIcon, CheckCircle2, XCircle, Search, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, CheckCircle2, XCircle, Search, Trash2, Copy } from 'lucide-react';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 

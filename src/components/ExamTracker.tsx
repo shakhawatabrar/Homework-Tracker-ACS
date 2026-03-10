@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Student, Exam } from '../types';
-import { FileText, Plus, Trash2, Eye, EyeOff, Save, CheckCircle2, XCircle, AlertTriangle, Search, Star } from 'lucide-react';
+import { FileText, Plus, Trash2, Eye, EyeOff, Save, CheckCircle2, XCircle, AlertTriangle, Search, Star, Copy } from 'lucide-react';
 import { doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
-const ExamCard = ({ exam, students, role }: { exam: Exam, students: Student[], role: string }) => {
+const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Exam[], students: Student[], role: string }) => {
   const [marks, setMarks] = useState<Record<string, number | null>>(exam.marks || {});
   const [isModified, setIsModified] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -62,6 +62,94 @@ const ExamCard = ({ exam, students, role }: { exam: Exam, students: Student[], r
     s.roll.toLowerCase().includes(searchQuery.toLowerCase())
   ).sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true}));
 
+  const presentStudentsList = filteredStudents.filter(s => marks[s.id] !== null && marks[s.id] !== undefined);
+  const absentStudentsList = filteredStudents.filter(s => marks[s.id] === null || marks[s.id] === undefined);
+
+  const renderStudentRow = (student: Student) => {
+    const studentMark = marks[student.id];
+    const isPresent = studentMark !== null && studentMark !== undefined;
+
+    return (
+      <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50/80 transition-colors">
+        <td className="p-3 text-gray-800 font-mono text-sm">{student.roll}</td>
+        <td className="p-3 text-gray-800 font-medium">{student.name}</td>
+        <td className="p-3 text-center">
+          {role === 'admin' ? (
+            <button
+              onClick={() => handleMarkChange(student.id, isPresent ? null : 0)}
+              className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium border transition-colors ${
+                isPresent
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                  : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+              }`}
+            >
+              {isPresent ? <><CheckCircle2 className="w-3 h-3 mr-1" /> উপস্থিত</> : <><XCircle className="w-3 h-3 mr-1" /> অনুপস্থিত</>}
+            </button>
+          ) : (
+            <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium border ${
+              isPresent
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                : 'bg-red-50 text-red-700 border-red-100'
+            }`}>
+              {isPresent ? <><CheckCircle2 className="w-3 h-3 mr-1" /> উপস্থিত</> : <><XCircle className="w-3 h-3 mr-1" /> অনুপস্থিত</>}
+            </span>
+          )}
+        </td>
+        <td className="p-3 text-center">
+          {isPresent ? (
+            role === 'admin' ? (
+              <div className="flex items-center justify-center space-x-1">
+                {[1, 2, 3].map(star => (
+                  <button
+                    key={star}
+                    onClick={() => handleMarkChange(student.id, star)}
+                    className={`focus:outline-none transition-colors ${studentMark !== null && studentMark >= star ? 'text-amber-400' : 'text-gray-200 hover:text-amber-200'}`}
+                    title={`${star} Star = ${star === 1 ? '33' : star === 2 ? '70' : '100'} Marks`}
+                  >
+                    <Star className={`w-6 h-6 ${studentMark !== null && studentMark >= star ? 'fill-current' : ''}`} />
+                  </button>
+                ))}
+                <button
+                  onClick={() => handleMarkChange(student.id, 0)}
+                  className={`ml-2 px-2 py-1 text-xs font-bold rounded-md border transition-colors ${studentMark === 0 ? 'bg-red-100 text-red-700 border-red-200' : 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'}`}
+                  title="0 Star = 0 Marks"
+                >
+                  0
+                </button>
+                <div className="w-10 text-left ml-2">
+                  {studentMark !== null && (
+                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${studentMark === 0 ? 'text-red-600 bg-red-50' : 'text-indigo-600 bg-indigo-50'}`}>
+                      {studentMark === 1 ? '৩৩' : studentMark === 2 ? '৭০' : studentMark === 3 ? '১০০' : '০'}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center space-x-1">
+                {studentMark === 0 ? (
+                  <span className="text-red-500 font-bold text-sm px-2 py-1 bg-red-50 rounded-md border border-red-100">০ (0 Stars)</span>
+                ) : (
+                  <>
+                    <div className="flex">
+                      {[1, 2, 3].map(star => (
+                        <Star key={star} className={`w-5 h-5 ${studentMark !== null && studentMark >= star ? 'text-amber-400 fill-current' : 'text-gray-200'}`} />
+                      ))}
+                    </div>
+                    <span className="ml-2 text-sm font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                      {studentMark === 1 ? '৩৩' : studentMark === 2 ? '৭০' : '১০০'}
+                    </span>
+                  </>
+                )}
+              </div>
+            )
+          ) : (
+            <span className="text-gray-400">-</span>
+          )}
+        </td>
+      </tr>
+    );
+  };
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
       <div className="p-5 bg-gray-50/50 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -74,12 +162,12 @@ const ExamCard = ({ exam, students, role }: { exam: Exam, students: Student[], r
               </span>
             )}
           </div>
-          <p className="text-sm text-gray-500">তারিখ: {exam.date} | মার্কিং: <span className="font-bold text-gray-700">৩ স্টার সিস্টেম</span></p>
+          <p className="text-sm text-gray-500">তারিখ: {exam.date} | মার্কিং: <span className="font-bold text-gray-700">৩ স্টার সিস্টেম (১★=৩৩, ২★=৭০, ৩★=১০০)</span></p>
           <p className="text-xs text-gray-500 mt-1">উপস্থিত: {presentStudents} জন | অনুপস্থিত: {absentStudents} জন</p>
         </div>
 
         {role === 'admin' && (
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
             <button
               onClick={handleTogglePublish}
               className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center ${exam.isPublished ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
@@ -114,87 +202,59 @@ const ExamCard = ({ exam, students, role }: { exam: Exam, students: Student[], r
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-white border-b border-gray-100">
-              <th className="p-3 font-semibold text-gray-600 w-20">রোল</th>
-              <th className="p-3 font-semibold text-gray-600">নাম</th>
-              <th className="p-3 font-semibold text-gray-600 text-center w-32">অবস্থা</th>
-              <th className="p-3 font-semibold text-gray-600 text-center w-40">প্রাপ্ত স্টার</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredStudents.map(student => {
-              const studentMark = marks[student.id];
-              const isPresent = studentMark !== null && studentMark !== undefined;
-
-              return (
-                <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50/80 transition-colors">
-                  <td className="p-3 text-gray-800 font-mono text-sm">{student.roll}</td>
-                  <td className="p-3 text-gray-800 font-medium">{student.name}</td>
-                  <td className="p-3 text-center">
-                    {role === 'admin' ? (
-                      <button
-                        onClick={() => handleMarkChange(student.id, isPresent ? null : 0)}
-                        className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium border transition-colors ${
-                          isPresent
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                            : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
-                        }`}
-                      >
-                        {isPresent ? <><CheckCircle2 className="w-3 h-3 mr-1" /> উপস্থিত</> : <><XCircle className="w-3 h-3 mr-1" /> অনুপস্থিত</>}
-                      </button>
-                    ) : (
-                      <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium border ${
-                        isPresent
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                          : 'bg-red-50 text-red-700 border-red-100'
-                      }`}>
-                        {isPresent ? <><CheckCircle2 className="w-3 h-3 mr-1" /> উপস্থিত</> : <><XCircle className="w-3 h-3 mr-1" /> অনুপস্থিত</>}
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-3 text-center">
-                    {isPresent ? (
-                      role === 'admin' ? (
-                        <div className="flex items-center justify-center space-x-1">
-                          {[1, 2, 3].map(star => (
-                            <button
-                              key={star}
-                              onClick={() => handleMarkChange(student.id, star)}
-                              className={`focus:outline-none transition-colors ${studentMark !== null && studentMark >= star ? 'text-amber-400' : 'text-gray-200 hover:text-amber-200'}`}
-                            >
-                              <Star className={`w-6 h-6 ${studentMark !== null && studentMark >= star ? 'fill-current' : ''}`} />
-                            </button>
-                          ))}
-                          <button
-                            onClick={() => handleMarkChange(student.id, 0)}
-                            className={`ml-2 px-2 py-1 text-xs font-bold rounded-md border transition-colors ${studentMark === 0 ? 'bg-red-100 text-red-700 border-red-200' : 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'}`}
-                            title="0 Star"
-                          >
-                            0
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center space-x-1">
-                          {studentMark === 0 ? (
-                            <span className="text-red-500 font-bold text-sm px-2 py-1 bg-red-50 rounded-md border border-red-100">0 Stars</span>
-                          ) : (
-                            [1, 2, 3].map(star => (
-                              <Star key={star} className={`w-5 h-5 ${studentMark !== null && studentMark >= star ? 'text-amber-400 fill-current' : 'text-gray-200'}`} />
-                            ))
-                          )}
-                        </div>
-                      )
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </td>
+        {presentStudentsList.length > 0 && (
+          <div className="mb-6">
+            <div className="bg-emerald-50 px-4 py-2 border-y border-emerald-100">
+              <h4 className="font-bold text-emerald-800 flex items-center">
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                যারা পরীক্ষা দিয়েছে ({presentStudentsList.length})
+              </h4>
+            </div>
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-white border-b border-gray-100">
+                  <th className="p-3 font-semibold text-gray-600 w-20">রোল</th>
+                  <th className="p-3 font-semibold text-gray-600">নাম</th>
+                  <th className="p-3 font-semibold text-gray-600 text-center w-32">অবস্থা</th>
+                  <th className="p-3 font-semibold text-gray-600 text-center w-48">প্রাপ্ত স্টার ও নম্বর</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {presentStudentsList.map(renderStudentRow)}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {absentStudentsList.length > 0 && (
+          <div>
+            <div className="bg-red-50 px-4 py-2 border-y border-red-100">
+              <h4 className="font-bold text-red-800 flex items-center">
+                <XCircle className="w-4 h-4 mr-2" />
+                যারা পরীক্ষা দেয়নি ({absentStudentsList.length})
+              </h4>
+            </div>
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-white border-b border-gray-100">
+                  <th className="p-3 font-semibold text-gray-600 w-20">রোল</th>
+                  <th className="p-3 font-semibold text-gray-600">নাম</th>
+                  <th className="p-3 font-semibold text-gray-600 text-center w-32">অবস্থা</th>
+                  <th className="p-3 font-semibold text-gray-600 text-center w-48">প্রাপ্ত স্টার ও নম্বর</th>
+                </tr>
+              </thead>
+              <tbody>
+                {absentStudentsList.map(renderStudentRow)}
+              </tbody>
+            </table>
+          </div>
+        )}
+        
+        {filteredStudents.length === 0 && (
+          <div className="p-8 text-center text-gray-500">
+            কোনো শিক্ষার্থী পাওয়া যায়নি
+          </div>
+        )}
       </div>
       
       {role === 'admin' && isModified && (
@@ -323,7 +383,7 @@ export default function ExamTracker({ students, exams, role }: Props) {
           </div>
         ) : (
           visibleExams.map(exam => (
-            <ExamCard key={exam.id} exam={exam} students={students} role={role} />
+            <ExamCard key={exam.id} exam={exam} allExams={exams} students={students} role={role} />
           ))
         )}
       </div>
