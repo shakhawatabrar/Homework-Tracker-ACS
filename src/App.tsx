@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, BookOpenCheck, BarChart3, Menu, X, Lock, User, LogOut, Bell, BookOpen, Shield, FileText } from 'lucide-react';
-import { Student, HomeworkRecord, Notice, ClassModule, TeamRule, Exam } from './types';
+import { LayoutDashboard, Users, BookOpenCheck, BarChart3, Menu, X, Lock, User, LogOut, Bell, BookOpen, Shield, FileText, MessageSquareWarning } from 'lucide-react';
+import { Student, HomeworkRecord, Notice, ClassModule, TeamRule, Exam, Complaint } from './types';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import Dashboard from './components/Dashboard';
@@ -11,6 +11,7 @@ import NoticeBoard from './components/NoticeBoard';
 import ClassModuleBoard from './components/ClassModuleBoard';
 import TeamRulesBoard from './components/TeamRulesBoard';
 import ExamTracker from './components/ExamTracker';
+import ComplaintBox from './components/ComplaintBox';
 
 const ADMIN_PASSWORD = 'B12ACS';
 
@@ -42,6 +43,7 @@ export default function App() {
   const [modules, setModules] = useState<ClassModule[]>([]);
   const [rules, setRules] = useState<TeamRule[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
 
   useEffect(() => {
     if (role) {
@@ -109,12 +111,20 @@ export default function App() {
       console.error("Firestore error (exams):", error);
     });
 
+    const unsubComplaints = onSnapshot(collection(db, 'complaints'), (snapshot) => {
+      const complaintsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Complaint));
+      setComplaints(complaintsData.sort((a, b) => b.timestamp - a.timestamp));
+    }, (error) => {
+      console.error("Firestore error (complaints):", error);
+    });
+
     return () => {
       unsubRecords();
       unsubNotices();
       unsubModules();
       unsubRules();
       unsubExams();
+      unsubComplaints();
     };
   }, [role]);
 
@@ -248,6 +258,7 @@ export default function App() {
     { id: 'modules', label: 'ক্লাস মডিউল', icon: <BookOpen className="w-5 h-5" />, roles: ['admin', 'student'] },
     { id: 'rules', label: 'টিমের নিয়মকানুন', icon: <Shield className="w-5 h-5" />, roles: ['admin', 'student'] },
     { id: 'exams', label: 'পরীক্ষা', icon: <FileText className="w-5 h-5" />, roles: ['admin', 'student'] },
+    { id: 'complaints', label: 'অভিযোগ বক্স', icon: <MessageSquareWarning className="w-5 h-5" />, roles: ['admin', 'student'] },
     { id: 'students', label: 'ছাত্র', icon: <Users className="w-5 h-5" />, roles: ['admin'] },
     { id: 'homework', label: 'হোমওয়ার্ক', icon: <BookOpenCheck className="w-5 h-5" />, roles: ['admin'] },
     { id: 'reports', label: 'রিপোর্ট', icon: <BarChart3 className="w-5 h-5" />, roles: ['admin', 'student'] },
@@ -276,6 +287,8 @@ export default function App() {
         return <TeamRulesBoard rules={rules} role={role} />;
       case 'exams':
         return <ExamTracker students={students} exams={exams} role={role} />;
+      case 'complaints':
+        return <ComplaintBox complaints={complaints} role={role} students={students} />;
       case 'students':
         return role === 'admin' ? <StudentManager students={students} /> : null;
       case 'homework':

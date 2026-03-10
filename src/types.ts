@@ -38,6 +38,15 @@ export interface Exam {
   timestamp: number;
 }
 
+export interface Complaint {
+  id: string;
+  studentName: string;
+  studentRoll: string;
+  text: string;
+  timestamp: number;
+  isRead: boolean;
+}
+
 export interface HomeworkRecord {
   date: string; // YYYY-MM-DD
   submissions: Record<string, boolean>; // studentId -> isSubmitted
