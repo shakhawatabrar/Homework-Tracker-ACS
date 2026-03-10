@@ -12,9 +12,20 @@ import ClassModuleBoard from './components/ClassModuleBoard';
 import TeamRulesBoard from './components/TeamRulesBoard';
 import ExamTracker from './components/ExamTracker';
 
+const ADMIN_PASSWORD = 'B12ACS';
+
 export default function App() {
   const [role, setRole] = useState<'admin' | 'student' | null>(() => {
-    return (localStorage.getItem('hw_role') as 'admin' | 'student' | null) || null;
+    const savedRole = localStorage.getItem('hw_role') as 'admin' | 'student' | null;
+    if (savedRole === 'admin') {
+      const token = localStorage.getItem('hw_admin_token');
+      if (token !== ADMIN_PASSWORD) {
+        localStorage.removeItem('hw_role');
+        localStorage.removeItem('hw_admin_token');
+        return null;
+      }
+    }
+    return savedRole;
   });
   const [pin, setPin] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -164,14 +175,20 @@ export default function App() {
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
-                      if(pin === 'ONLYADMIN12') setRole('admin');
+                      if(pin === ADMIN_PASSWORD) {
+                        setRole('admin');
+                        localStorage.setItem('hw_admin_token', ADMIN_PASSWORD);
+                      }
                       else setLoginError('ভুল পাসওয়ার্ড!');
                     }
                   }}
                 />
                 <button 
                   onClick={() => {
-                    if(pin === 'ONLYADMIN12') setRole('admin');
+                    if(pin === ADMIN_PASSWORD) {
+                      setRole('admin');
+                      localStorage.setItem('hw_admin_token', ADMIN_PASSWORD);
+                    }
                     else setLoginError('ভুল পাসওয়ার্ড!');
                   }}
                   className="w-full bg-indigo-600 text-white px-4 py-2.5 rounded-xl hover:bg-indigo-700 transition-colors font-medium shadow-sm"
@@ -243,6 +260,8 @@ export default function App() {
     setPin('');
     setStudentRoll('');
     setActiveTab('dashboard');
+    localStorage.removeItem('hw_admin_token');
+    localStorage.removeItem('hw_role');
   };
 
   const renderContent = () => {
