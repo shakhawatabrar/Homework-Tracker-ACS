@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { TeamRule } from '../types';
-import { Shield, Plus, Trash2, CheckCircle } from 'lucide-react';
-import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { Shield, Plus, Trash2, CheckCircle, Edit2 } from 'lucide-react';
+import { doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import toast from 'react-hot-toast';
 
 interface Props {
   rules: TeamRule[];
@@ -11,29 +12,54 @@ interface Props {
 
 export default function TeamRulesBoard({ rules, role }: Props) {
   const [isAdding, setIsAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  const handleAdd = async (e: React.FormEvent) => {
+  const startEdit = (rule: TeamRule) => {
+    setEditingId(rule.id);
+    setTitle(rule.title);
+    setContent(rule.content);
+    setIsAdding(true);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setTitle('');
+    setContent('');
+    setIsAdding(false);
+  };
+
+  const handleAddOrEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !content.trim() || !db) return;
 
-    const newRule: TeamRule = {
-      id: Date.now().toString(),
-      title: title.trim(),
-      content: content.trim(),
-      timestamp: Date.now()
-    };
-
     try {
-      await setDoc(doc(db, 'rules', newRule.id), newRule);
-      setTitle('');
-      setContent('');
-      setIsAdding(false);
+      if (editingId) {
+        // Edit existing rule
+        const ruleRef = doc(db, 'rules', editingId);
+        await updateDoc(ruleRef, {
+          title: title.trim(),
+          content: content.trim(),
+        });
+        toast.success('নিয়ম সফলভাবে আপডেট করা হয়েছে!');
+      } else {
+        // Add new rule
+        const newRule: TeamRule = {
+          id: Date.now().toString(),
+          title: title.trim(),
+          content: content.trim(),
+          timestamp: Date.now()
+        };
+        await setDoc(doc(db, 'rules', newRule.id), newRule);
+        toast.success('নতুন নিয়ম সফলভাবে যোগ করা হয়েছে!');
+      }
+      
+      cancelEdit();
     } catch (error: any) {
-      console.error("Error adding rule:", error);
-      alert("নিয়ম যোগ করা যায়নি! Firebase Rules চেক করুন। Error: " + error.message);
+      console.error("Error saving rule:", error);
+      toast.error("নিয়ম সেভ করা যায়নি! Error: " + error.message);
     }
   };
 
@@ -42,9 +68,10 @@ export default function TeamRulesBoard({ rules, role }: Props) {
       try {
         await deleteDoc(doc(db, 'rules', deleteConfirmId));
         setDeleteConfirmId(null);
+        toast.success('নিয়ম সফলভাবে মুছে ফেলা হয়েছে!');
       } catch (error: any) {
         console.error("Error deleting rule:", error);
-        alert("নিয়ম মুছে ফেলা যায়নি! Firebase Rules চেক করুন। Error: " + error.message);
+        toast.error("নিয়ম মুছে ফেলা যায়নি! Error: " + error.message);
       }
     }
   };
@@ -82,8 +109,8 @@ export default function TeamRulesBoard({ rules, role }: Props) {
       {isAdding && role === 'admin' && (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100 mb-6 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
-          <h3 className="text-lg font-bold text-gray-800 mb-4">নতুন নিয়ম যোগ করুন</h3>
-          <form onSubmit={handleAdd} className="space-y-4">
+          <h3 className="text-lg font-bold text-gray-800 mb-4">{editingId ? 'নিয়ম এডিট করুন' : 'নতুন নিয়ম যোগ করুন'}</h3>
+          <form onSubmit={handleAddOrEdit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">নিয়মের শিরোনাম</label>
               <input 
@@ -108,7 +135,7 @@ export default function TeamRulesBoard({ rules, role }: Props) {
             <div className="flex justify-end space-x-3 pt-2">
               <button 
                 type="button" 
-                onClick={() => setIsAdding(false)}
+                onClick={cancelEdit}
                 className="px-5 py-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors font-medium"
               >
                 বাতিল
@@ -117,7 +144,7 @@ export default function TeamRulesBoard({ rules, role }: Props) {
                 type="submit"
                 className="px-5 py-2 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl transition-colors font-medium shadow-sm"
               >
-                সেভ করুন
+                {editingId ? 'আপডেট করুন' : 'সেভ করুন'}
               </button>
             </div>
           </form>
@@ -145,13 +172,22 @@ export default function TeamRulesBoard({ rules, role }: Props) {
                   <div className="flex justify-between items-start mb-1">
                     <h3 className="text-lg font-bold text-gray-900 pr-8">{rule.title}</h3>
                     {role === 'admin' && (
-                      <button 
-                        onClick={() => setDeleteConfirmId(rule.id)}
-                        className="text-red-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors focus:outline-none flex-shrink-0"
-                        title="মুছে ফেলুন"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={() => startEdit(rule)}
+                          className="text-emerald-400 hover:text-emerald-600 p-1.5 rounded-lg hover:bg-emerald-50 transition-colors focus:outline-none flex-shrink-0"
+                          title="এডিট করুন"
+                        >
+                          <Edit2 className="w-5 h-5" />
+                        </button>
+                        <button 
+                          onClick={() => setDeleteConfirmId(rule.id)}
+                          className="text-red-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors focus:outline-none flex-shrink-0"
+                          title="মুছে ফেলুন"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
                     )}
                   </div>
                   <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{rule.content}</p>

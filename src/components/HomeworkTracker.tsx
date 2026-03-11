@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Student, HomeworkRecord } from '../types';
-import { Calendar as CalendarIcon, CheckCircle2, XCircle, Search, Trash2, Copy, Download, FileText } from 'lucide-react';
+import { Calendar as CalendarIcon, CheckCircle2, XCircle, Search, Trash2, Copy, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
+import toast from 'react-hot-toast';
 
 interface Props {
   students: Student[];
@@ -18,9 +19,11 @@ export default function HomeworkTracker({ students, records }: Props) {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
+  const [isExportingSheets, setIsExportingSheets] = useState(false);
+
+  const record = records.find(r => r.date === date);
 
   useEffect(() => {
-    const record = records.find(r => r.date === date);
     if (record) {
       setCurrentSubmissions(record.submissions);
     } else {
@@ -31,6 +34,93 @@ export default function HomeworkTracker({ students, records }: Props) {
       setCurrentSubmissions(initial);
     }
   }, [date, records, students]);
+
+  const filteredStudents = students.filter(student => 
+    student.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    student.roll.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const submittedStudents = filteredStudents.filter(s => currentSubmissions[s.id]).sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true}));
+  const notSubmittedStudents = filteredStudents.filter(s => !currentSubmissions[s.id]).sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true}));
+
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      const origin = event.origin;
+      if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
+        return;
+      }
+      
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+        const token = event.data.token;
+        setIsExportingSheets(true);
+        
+        const submitted = submittedStudents.map(s => ({ roll: s.roll, name: s.name }));
+        const notSubmitted = notSubmittedStudents.map(s => ({ roll: s.roll, name: s.name }));
+
+        try {
+          const res = await fetch('/api/export-homework-sheets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              token,
+              date,
+              submitted,
+              notSubmitted,
+              existingSpreadsheetId: record?.spreadsheetId
+            })
+          });
+          
+          const data = await res.json();
+          if (data.success) {
+            if (!record?.spreadsheetId && db) {
+              await setDoc(doc(db, 'homework', date), {
+                date,
+                submissions: currentSubmissions,
+                timestamp: Date.now(),
+                spreadsheetId: data.spreadsheetId,
+                spreadsheetUrl: data.url
+              }, { merge: true });
+            }
+            toast.success(record?.spreadsheetId ? 'সফলভাবে গুগল শিট আপডেট হয়েছে!' : 'সফলভাবে গুগল শিট তৈরি হয়েছে!');
+            window.open(data.url, '_blank');
+          } else {
+            toast.error('গুগল শিট তৈরি/আপডেট করতে সমস্যা হয়েছে: ' + data.error);
+          }
+        } catch (err) {
+          toast.error('গুগল শিট তৈরি/আপডেট করতে সমস্যা হয়েছে।');
+        } finally {
+          setIsExportingSheets(false);
+        }
+      }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [date, submittedStudents, notSubmittedStudents, record, currentSubmissions]);
+
+  const exportToGoogleSheets = async () => {
+    setIsExportingSheets(true);
+    try {
+      const response = await fetch('/api/auth/google/url');
+      const data = await response.json();
+      
+      if (!response.ok) {
+        toast.error('Google OAuth কনফিগার করা নেই। দয়া করে Settings থেকে GOOGLE_CLIENT_ID এবং GOOGLE_CLIENT_SECRET সেট করুন।');
+        setIsExportingSheets(false);
+        return;
+      }
+
+      const authWindow = window.open(data.url, 'oauth_popup', 'width=600,height=700');
+      if (!authWindow) {
+        toast.error('পপআপ ব্লক করা হয়েছে। দয়া করে পপআপ অ্যালাউ করুন।');
+        setIsExportingSheets(false);
+      }
+    } catch (error) {
+      console.error('Error initiating OAuth:', error);
+      toast.error('গুগল কানেক্ট করতে সমস্যা হয়েছে।');
+      setIsExportingSheets(false);
+    }
+  };
 
   const toggleSubmission = (studentId: string, status: boolean) => {
     setCurrentSubmissions(prev => ({
@@ -79,14 +169,6 @@ export default function HomeworkTracker({ students, records }: Props) {
   const recordExists = records.some(r => r.date === date);
   const submittedCount = Object.values(currentSubmissions).filter(Boolean).length;
   const missedCount = students.length - submittedCount;
-
-  const filteredStudents = students.filter(student => 
-    student.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    student.roll.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const submittedStudents = filteredStudents.filter(s => currentSubmissions[s.id]).sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true}));
-  const notSubmittedStudents = filteredStudents.filter(s => !currentSubmissions[s.id]).sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true}));
 
   const downloadTxt = () => {
     let content = `হোমওয়ার্ক রিপোর্ট - তারিখ: ${date}\n\n`;
@@ -168,9 +250,9 @@ export default function HomeworkTracker({ students, records }: Props) {
     const opt = {
       margin:       10,
       filename:     `homework_${date}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
+      image:        { type: 'jpeg' as const, quality: 0.98 },
       html2canvas:  { scale: 2, useCORS: true },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
     };
 
     html2pdf().set(opt).from(element).save();
@@ -236,7 +318,26 @@ export default function HomeworkTracker({ students, records }: Props) {
             <span>জমা দিয়েছে: <strong className="text-emerald-600">{submittedCount}</strong></span>
             <span>দেয়নি: <strong className="text-red-600">{missedCount}</strong></span>
           </div>
-          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto items-center">
+            {record?.spreadsheetUrl && (
+              <a 
+                href={record.spreadsheetUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-xs text-emerald-600 hover:text-emerald-700 underline mr-2"
+              >
+                শিট দেখুন
+              </a>
+            )}
+            <button 
+              onClick={exportToGoogleSheets}
+              disabled={isExportingSheets}
+              className="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-xl hover:bg-emerald-200 transition-colors text-sm font-medium shadow-sm flex items-center justify-center flex-1 sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
+              title={record?.spreadsheetId ? "গুগল শিট আপডেট করুন" : "গুগল শিটে এক্সপোর্ট করুন"}
+            >
+              <FileSpreadsheet className="w-4 h-4 mr-1.5" /> 
+              {isExportingSheets ? 'তৈরি হচ্ছে...' : (record?.spreadsheetId ? 'আপডেট শিট' : 'শিট')}
+            </button>
             <button 
               onClick={downloadTxt}
               className="bg-gray-100 text-gray-700 px-4 py-2 rounded-xl hover:bg-gray-200 transition-colors text-sm font-medium shadow-sm flex items-center justify-center flex-1 sm:flex-none"

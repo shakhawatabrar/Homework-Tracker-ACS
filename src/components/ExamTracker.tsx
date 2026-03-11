@@ -1,17 +1,119 @@
 import React, { useState, useEffect } from 'react';
 import { Student, Exam } from '../types';
-import { FileText, Plus, Trash2, Eye, EyeOff, Save, CheckCircle2, XCircle, AlertTriangle, Search, Star, Copy, Download } from 'lucide-react';
+import { FileText, Plus, Trash2, Eye, EyeOff, Save, CheckCircle2, XCircle, AlertTriangle, Search, Star, Copy, Download, FileSpreadsheet } from 'lucide-react';
 import { doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
 
-const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Exam[], students: Student[], role: string }) => {
+interface ExamCardProps {
+  exam: Exam;
+  allExams: Exam[];
+  students: Student[];
+  role: string;
+}
+
+const ExamCard: React.FC<ExamCardProps> = ({ exam, allExams, students, role }) => {
   const [marks, setMarks] = useState<Record<string, number | null>>(exam.marks || {});
   const [isModified, setIsModified] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isExportingSheets, setIsExportingSheets] = useState(false);
+
+  const totalStudents = students.length;
+  const presentStudents = students.filter(s => marks[s.id] !== null && marks[s.id] !== undefined).length;
+  const absentStudents = totalStudents - presentStudents;
+
+  const filteredStudents = students.filter(s => 
+    s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    s.roll.toLowerCase().includes(searchQuery.toLowerCase())
+  ).sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true}));
+
+  const presentStudentsList = filteredStudents.filter(s => marks[s.id] !== null && marks[s.id] !== undefined);
+  const absentStudentsList = filteredStudents.filter(s => marks[s.id] === null || marks[s.id] === undefined);
+
+  const passedStudentsList = presentStudentsList.filter(s => marks[s.id] !== null && marks[s.id]! >= 1);
+  const failedStudentsList = presentStudentsList.filter(s => marks[s.id] === 0);
+
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      const origin = event.origin;
+      if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
+        return;
+      }
+      
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+        const token = event.data.token;
+        setIsExportingSheets(true);
+        
+        const passed = passedStudentsList.map(s => ({ roll: s.roll, name: s.name, mark: marks[s.id] }));
+        const failed = failedStudentsList.map(s => ({ roll: s.roll, name: s.name }));
+        const absent = absentStudentsList.map(s => ({ roll: s.roll, name: s.name }));
+
+        try {
+          const res = await fetch('/api/export-sheets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              token,
+              examTitle: exam.title,
+              examDate: exam.date,
+              passed,
+              failed,
+              absent,
+              existingSpreadsheetId: exam.spreadsheetId
+            })
+          });
+          
+          const data = await res.json();
+          if (data.success) {
+            if (!exam.spreadsheetId && db) {
+              await updateDoc(doc(db, 'exams', exam.id), {
+                spreadsheetId: data.spreadsheetId,
+                spreadsheetUrl: data.url
+              });
+            }
+            alert(exam.spreadsheetId ? 'সফলভাবে গুগল শিট আপডেট হয়েছে!' : 'সফলভাবে গুগল শিট তৈরি হয়েছে!');
+            window.open(data.url, '_blank');
+          } else {
+            alert('গুগল শিট তৈরি/আপডেট করতে সমস্যা হয়েছে: ' + data.error);
+          }
+        } catch (err) {
+          alert('গুগল শিট তৈরি/আপডেট করতে সমস্যা হয়েছে।');
+        } finally {
+          setIsExportingSheets(false);
+        }
+      }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [exam.title, exam.date, passedStudentsList, failedStudentsList, absentStudentsList, marks]);
+
+  const exportToGoogleSheets = async () => {
+    setIsExportingSheets(true);
+    try {
+      const response = await fetch('/api/auth/google/url');
+      const data = await response.json();
+      
+      if (!response.ok) {
+        alert('Google OAuth কনফিগার করা নেই। দয়া করে Settings থেকে GOOGLE_CLIENT_ID এবং GOOGLE_CLIENT_SECRET সেট করুন।');
+        setIsExportingSheets(false);
+        return;
+      }
+
+      const authWindow = window.open(data.url, 'oauth_popup', 'width=600,height=700');
+      if (!authWindow) {
+        alert('পপআপ ব্লক করা হয়েছে। দয়া করে পপআপ অ্যালাউ করুন।');
+        setIsExportingSheets(false);
+      }
+    } catch (error) {
+      console.error('Error initiating OAuth:', error);
+      alert('গুগল কানেক্ট করতে সমস্যা হয়েছে।');
+      setIsExportingSheets(false);
+    }
+  };
 
   useEffect(() => {
     setMarks(exam.marks || {});
@@ -54,21 +156,6 @@ const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Ex
       alert("পরীক্ষা মুছে ফেলা যায়নি! Error: " + error.message);
     }
   };
-
-  const totalStudents = students.length;
-  const presentStudents = students.filter(s => marks[s.id] !== null && marks[s.id] !== undefined).length;
-  const absentStudents = totalStudents - presentStudents;
-
-  const filteredStudents = students.filter(s => 
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    s.roll.toLowerCase().includes(searchQuery.toLowerCase())
-  ).sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true}));
-
-  const presentStudentsList = filteredStudents.filter(s => marks[s.id] !== null && marks[s.id] !== undefined);
-  const absentStudentsList = filteredStudents.filter(s => marks[s.id] === null || marks[s.id] === undefined);
-
-  const passedStudentsList = presentStudentsList.filter(s => marks[s.id] !== null && marks[s.id]! >= 1);
-  const failedStudentsList = presentStudentsList.filter(s => marks[s.id] === 0);
 
   const downloadTxt = () => {
     let content = `পরীক্ষার ফলাফল - ${exam.title}\n`;
@@ -187,9 +274,9 @@ const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Ex
     const opt = {
       margin:       10,
       filename:     `exam_${exam.title}_${exam.date}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
+      image:        { type: 'jpeg' as const, quality: 0.98 },
       html2canvas:  { scale: 2, useCORS: true },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
     };
 
     html2pdf().set(opt).from(element).save();
@@ -297,6 +384,24 @@ const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Ex
 
         {role === 'admin' && (
           <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+            {exam.spreadsheetUrl && (
+              <a 
+                href={exam.spreadsheetUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-xs text-emerald-600 hover:text-emerald-700 underline mr-2"
+              >
+                শিট দেখুন
+              </a>
+            )}
+            <button 
+              onClick={exportToGoogleSheets}
+              disabled={isExportingSheets}
+              className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50"
+              title={exam.spreadsheetId ? "Google Sheets আপডেট করুন" : "Google Sheets এ এক্সপোর্ট করুন"}
+            >
+              <FileSpreadsheet className="w-5 h-5" />
+            </button>
             <button 
               onClick={downloadTxt}
               className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"

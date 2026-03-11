@@ -36,6 +36,8 @@ export interface Exam {
   isPublished: boolean;
   marks: Record<string, number | null>; // studentId -> marks (null means absent)
   timestamp: number;
+  spreadsheetId?: string;
+  spreadsheetUrl?: string;
 }
 
 export interface Complaint {
@@ -50,4 +52,6 @@ export interface Complaint {
 export interface HomeworkRecord {
   date: string; // YYYY-MM-DD
   submissions: Record<string, boolean>; // studentId -> isSubmitted
+  spreadsheetId?: string;
+  spreadsheetUrl?: string;
 }
