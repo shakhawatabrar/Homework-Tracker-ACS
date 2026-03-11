@@ -67,16 +67,24 @@ const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Ex
   const presentStudentsList = filteredStudents.filter(s => marks[s.id] !== null && marks[s.id] !== undefined);
   const absentStudentsList = filteredStudents.filter(s => marks[s.id] === null || marks[s.id] === undefined);
 
+  const passedStudentsList = presentStudentsList.filter(s => marks[s.id] !== null && marks[s.id]! >= 1);
+  const failedStudentsList = presentStudentsList.filter(s => marks[s.id] === 0);
+
   const downloadTxt = () => {
     let content = `পরীক্ষার ফলাফল - ${exam.title}\n`;
     content += `তারিখ: ${exam.date}\n\n`;
     
-    content += `উপস্থিত (${presentStudentsList.length} জন):\n`;
+    content += `পাস করেছে (${passedStudentsList.length} জন):\n`;
     content += `----------------------------------------\n`;
-    presentStudentsList.forEach(s => {
+    passedStudentsList.forEach(s => {
       const mark = marks[s.id];
-      const markText = mark === 1 ? '৩৩' : mark === 2 ? '৭০' : mark === 3 ? '১০০' : '০';
-      content += `রোল: ${s.roll} - ${s.name} (প্রাপ্ত নম্বর: ${markText})\n`;
+      content += `রোল: ${s.roll} - ${s.name} (প্রাপ্ত স্টার: ${mark}★)\n`;
+    });
+    
+    content += `\nফেল করেছে (${failedStudentsList.length} জন):\n`;
+    content += `----------------------------------------\n`;
+    failedStudentsList.forEach(s => {
+      content += `রোল: ${s.roll} - ${s.name} (প্রাপ্ত স্টার: ০★)\n`;
     });
     
     content += `\nঅনুপস্থিত (${absentStudentsList.length} জন):\n`;
@@ -104,33 +112,56 @@ const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Ex
         
         <div style="margin-bottom: 30px;">
           <h3 style="color: #059669; border-bottom: 2px solid #059669; padding-bottom: 8px; margin-bottom: 15px; font-size: 18px;">
-            উপস্থিত (${presentStudentsList.length} জন)
+            পাস করেছে (${passedStudentsList.length} জন)
           </h3>
           <table style="width: 100%; border-collapse: collapse;">
             <thead>
               <tr style="background-color: #f3f4f6;">
                 <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb; width: 80px;">রোল</th>
                 <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">নাম</th>
-                <th style="padding: 10px; text-align: center; border: 1px solid #e5e7eb; width: 120px;">প্রাপ্ত নম্বর</th>
+                <th style="padding: 10px; text-align: center; border: 1px solid #e5e7eb; width: 120px;">প্রাপ্ত স্টার</th>
               </tr>
             </thead>
             <tbody>
-              ${presentStudentsList.length > 0 ? presentStudentsList.map(s => {
+              ${passedStudentsList.length > 0 ? passedStudentsList.map(s => {
                 const mark = marks[s.id];
-                const markText = mark === 1 ? '৩৩' : mark === 2 ? '৭০' : mark === 3 ? '১০০' : '০';
                 return `
                 <tr>
                   <td style="padding: 8px 10px; border: 1px solid #e5e7eb; font-family: monospace;">${s.roll}</td>
                   <td style="padding: 8px 10px; border: 1px solid #e5e7eb;">${s.name}</td>
-                  <td style="padding: 8px 10px; border: 1px solid #e5e7eb; text-align: center; font-weight: bold;">${markText}</td>
+                  <td style="padding: 8px 10px; border: 1px solid #e5e7eb; text-align: center; font-weight: bold; color: #059669;">${mark}★</td>
                 </tr>
-              `}).join('') : `<tr><td colspan="3" style="padding: 10px; text-align: center; border: 1px solid #e5e7eb; color: #6b7280;">কেউ উপস্থিত ছিল না</td></tr>`}
+              `}).join('') : `<tr><td colspan="3" style="padding: 10px; text-align: center; border: 1px solid #e5e7eb; color: #6b7280;">কেউ পাস করেনি</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+
+        <div style="margin-bottom: 30px;">
+          <h3 style="color: #dc2626; border-bottom: 2px solid #dc2626; padding-bottom: 8px; margin-bottom: 15px; font-size: 18px;">
+            ফেল করেছে (${failedStudentsList.length} জন)
+          </h3>
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background-color: #f3f4f6;">
+                <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb; width: 80px;">রোল</th>
+                <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">নাম</th>
+                <th style="padding: 10px; text-align: center; border: 1px solid #e5e7eb; width: 120px;">প্রাপ্ত স্টার</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${failedStudentsList.length > 0 ? failedStudentsList.map(s => `
+                <tr>
+                  <td style="padding: 8px 10px; border: 1px solid #e5e7eb; font-family: monospace;">${s.roll}</td>
+                  <td style="padding: 8px 10px; border: 1px solid #e5e7eb;">${s.name}</td>
+                  <td style="padding: 8px 10px; border: 1px solid #e5e7eb; text-align: center; font-weight: bold; color: #dc2626;">০★</td>
+                </tr>
+              `).join('') : `<tr><td colspan="3" style="padding: 10px; text-align: center; border: 1px solid #e5e7eb; color: #6b7280;">কেউ ফেল করেনি</td></tr>`}
             </tbody>
           </table>
         </div>
 
         <div>
-          <h3 style="color: #dc2626; border-bottom: 2px solid #dc2626; padding-bottom: 8px; margin-bottom: 15px; font-size: 18px;">
+          <h3 style="color: #6b7280; border-bottom: 2px solid #6b7280; padding-bottom: 8px; margin-bottom: 15px; font-size: 18px;">
             অনুপস্থিত (${absentStudentsList.length} জন)
           </h3>
           <table style="width: 100%; border-collapse: collapse;">
@@ -196,6 +227,17 @@ const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Ex
         </td>
         <td className="p-3 text-center">
           {isPresent ? (
+            studentMark !== null && studentMark >= 1 ? (
+              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">পাস</span>
+            ) : (
+              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-bold bg-red-100 text-red-700 border border-red-200">ফেল</span>
+            )
+          ) : (
+            <span className="text-gray-400">-</span>
+          )}
+        </td>
+        <td className="p-3 text-center">
+          {isPresent ? (
             role === 'admin' ? (
               <div className="flex items-center justify-center space-x-1">
                 {[1, 2, 3].map(star => (
@@ -203,7 +245,7 @@ const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Ex
                     key={star}
                     onClick={() => handleMarkChange(student.id, star)}
                     className={`focus:outline-none transition-colors ${studentMark !== null && studentMark >= star ? 'text-amber-400' : 'text-gray-200 hover:text-amber-200'}`}
-                    title={`${star} Star = ${star === 1 ? '33' : star === 2 ? '70' : '100'} Marks`}
+                    title={`${star} Star`}
                   >
                     <Star className={`w-6 h-6 ${studentMark !== null && studentMark >= star ? 'fill-current' : ''}`} />
                   </button>
@@ -211,33 +253,21 @@ const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Ex
                 <button
                   onClick={() => handleMarkChange(student.id, 0)}
                   className={`ml-2 px-2 py-1 text-xs font-bold rounded-md border transition-colors ${studentMark === 0 ? 'bg-red-100 text-red-700 border-red-200' : 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'}`}
-                  title="0 Star = 0 Marks"
+                  title="0 Star"
                 >
                   0
                 </button>
-                <div className="w-10 text-left ml-2">
-                  {studentMark !== null && (
-                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${studentMark === 0 ? 'text-red-600 bg-red-50' : 'text-indigo-600 bg-indigo-50'}`}>
-                      {studentMark === 1 ? '৩৩' : studentMark === 2 ? '৭০' : studentMark === 3 ? '১০০' : '০'}
-                    </span>
-                  )}
-                </div>
               </div>
             ) : (
               <div className="flex items-center justify-center space-x-1">
                 {studentMark === 0 ? (
-                  <span className="text-red-500 font-bold text-sm px-2 py-1 bg-red-50 rounded-md border border-red-100">০ (0 Stars)</span>
+                  <span className="text-red-500 font-bold text-sm px-2 py-1 bg-red-50 rounded-md border border-red-100">০ স্টার</span>
                 ) : (
-                  <>
-                    <div className="flex">
-                      {[1, 2, 3].map(star => (
-                        <Star key={star} className={`w-5 h-5 ${studentMark !== null && studentMark >= star ? 'text-amber-400 fill-current' : 'text-gray-200'}`} />
-                      ))}
-                    </div>
-                    <span className="ml-2 text-sm font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
-                      {studentMark === 1 ? '৩৩' : studentMark === 2 ? '৭০' : '১০০'}
-                    </span>
-                  </>
+                  <div className="flex">
+                    {[1, 2, 3].map(star => (
+                      <Star key={star} className={`w-5 h-5 ${studentMark !== null && studentMark >= star ? 'text-amber-400 fill-current' : 'text-gray-200'}`} />
+                    ))}
+                  </div>
                 )}
               </div>
             )
@@ -261,8 +291,8 @@ const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Ex
               </span>
             )}
           </div>
-          <p className="text-sm text-gray-500">তারিখ: {exam.date} | মার্কিং: <span className="font-bold text-gray-700">৩ স্টার সিস্টেম (১★=৩৩, ২★=৭০, ৩★=১০০)</span></p>
-          <p className="text-xs text-gray-500 mt-1">উপস্থিত: {presentStudents} জন | অনুপস্থিত: {absentStudents} জন</p>
+          <p className="text-sm text-gray-500">তারিখ: {exam.date} | মার্কিং: <span className="font-bold text-gray-700">৩ স্টার সিস্টেম</span></p>
+          <p className="text-xs text-gray-500 mt-1">উপস্থিত: {presentStudents} জন (পাস: {passedStudentsList.length}, ফেল: {failedStudentsList.length}) | অনুপস্থিত: {absentStudents} জন</p>
         </div>
 
         {role === 'admin' && (
@@ -329,7 +359,8 @@ const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Ex
                   <th className="p-3 font-semibold text-gray-600 w-20">রোল</th>
                   <th className="p-3 font-semibold text-gray-600">নাম</th>
                   <th className="p-3 font-semibold text-gray-600 text-center w-32">অবস্থা</th>
-                  <th className="p-3 font-semibold text-gray-600 text-center w-48">প্রাপ্ত স্টার ও নম্বর</th>
+                  <th className="p-3 font-semibold text-gray-600 text-center w-24">ফলাফল</th>
+                  <th className="p-3 font-semibold text-gray-600 text-center w-48">প্রাপ্ত স্টার</th>
                 </tr>
               </thead>
               <tbody>
@@ -353,7 +384,8 @@ const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Ex
                   <th className="p-3 font-semibold text-gray-600 w-20">রোল</th>
                   <th className="p-3 font-semibold text-gray-600">নাম</th>
                   <th className="p-3 font-semibold text-gray-600 text-center w-32">অবস্থা</th>
-                  <th className="p-3 font-semibold text-gray-600 text-center w-48">প্রাপ্ত স্টার ও নম্বর</th>
+                  <th className="p-3 font-semibold text-gray-600 text-center w-24">ফলাফল</th>
+                  <th className="p-3 font-semibold text-gray-600 text-center w-48">প্রাপ্ত স্টার</th>
                 </tr>
               </thead>
               <tbody>
