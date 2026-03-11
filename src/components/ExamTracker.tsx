@@ -345,12 +345,12 @@ const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Ex
       </div>
 
       <div className="overflow-x-auto">
-        {presentStudentsList.length > 0 && (
+        {passedStudentsList.length > 0 && (
           <div className="mb-6">
             <div className="bg-emerald-50 px-4 py-2 border-y border-emerald-100">
               <h4 className="font-bold text-emerald-800 flex items-center">
                 <CheckCircle2 className="w-4 h-4 mr-2" />
-                যারা পরীক্ষা দিয়েছে ({presentStudentsList.length})
+                যারা পাস করেছে ({passedStudentsList.length})
               </h4>
             </div>
             <table className="w-full text-left border-collapse">
@@ -364,16 +364,41 @@ const ExamCard = ({ exam, allExams, students, role }: { exam: Exam, allExams: Ex
                 </tr>
               </thead>
               <tbody>
-                {presentStudentsList.map(renderStudentRow)}
+                {passedStudentsList.map(renderStudentRow)}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {failedStudentsList.length > 0 && (
+          <div className="mb-6">
+            <div className="bg-red-50 px-4 py-2 border-y border-red-100">
+              <h4 className="font-bold text-red-800 flex items-center">
+                <AlertTriangle className="w-4 h-4 mr-2" />
+                যারা ফেল করেছে ({failedStudentsList.length})
+              </h4>
+            </div>
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-white border-b border-gray-100">
+                  <th className="p-3 font-semibold text-gray-600 w-20">রোল</th>
+                  <th className="p-3 font-semibold text-gray-600">নাম</th>
+                  <th className="p-3 font-semibold text-gray-600 text-center w-32">অবস্থা</th>
+                  <th className="p-3 font-semibold text-gray-600 text-center w-24">ফলাফল</th>
+                  <th className="p-3 font-semibold text-gray-600 text-center w-48">প্রাপ্ত স্টার</th>
+                </tr>
+              </thead>
+              <tbody>
+                {failedStudentsList.map(renderStudentRow)}
               </tbody>
             </table>
           </div>
         )}
 
         {absentStudentsList.length > 0 && (
-          <div>
-            <div className="bg-red-50 px-4 py-2 border-y border-red-100">
-              <h4 className="font-bold text-red-800 flex items-center">
+          <div className="mb-6">
+            <div className="bg-gray-50 px-4 py-2 border-y border-gray-200">
+              <h4 className="font-bold text-gray-700 flex items-center">
                 <XCircle className="w-4 h-4 mr-2" />
                 যারা পরীক্ষা দেয়নি ({absentStudentsList.length})
               </h4>
