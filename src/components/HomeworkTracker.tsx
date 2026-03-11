@@ -43,37 +43,58 @@ export default function HomeworkTracker({ students, records }: Props) {
   const submittedStudents = filteredStudents.filter(s => currentSubmissions[s.id]).sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true}));
   const notSubmittedStudents = filteredStudents.filter(s => !currentSubmissions[s.id]).sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true}));
 
-  useEffect(() => {
-    const handleMessage = async (event: MessageEvent) => {
-      const origin = event.origin;
-      if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
-        return;
-      }
-      
-      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
-        const token = event.data.token;
-        setIsExportingSheets(true);
-        
-        const submitted = submittedStudents.map(s => ({ roll: s.roll, name: s.name }));
-        const notSubmitted = notSubmittedStudents.map(s => ({ roll: s.roll, name: s.name }));
+  const exportToGoogleSheets = async () => {
+    setIsExportingSheets(true);
+    
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    
+    if (!clientId) {
+      toast.error('Google OAuth কনফিগার করা নেই। দয়া করে Netlify/Vercel এর Environment Variables এ VITE_GOOGLE_CLIENT_ID সেট করুন।');
+      setIsExportingSheets(false);
+      return;
+    }
 
-        try {
-          const res = await fetch('/api/export-homework-sheets', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              token,
-              date,
-              submitted,
-              notSubmitted,
-              existingSpreadsheetId: record?.spreadsheetId
-            })
-          });
+    try {
+      const client = (window as any).google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/spreadsheets',
+        callback: async (response: any) => {
+          if (response.error !== undefined) {
+            throw (response);
+          }
           
-          const data = await res.json();
-          if (data.success) {
+          const token = response.access_token;
+          
+          const submitted = submittedStudents.map(s => ({ roll: s.roll, name: s.name }));
+          const notSubmitted = notSubmittedStudents.map(s => ({ roll: s.roll, name: s.name }));
+
+          try {
+            const { createOrUpdateSpreadsheet } = await import('../utils/googleSheets');
+            
+            const submittedData = [
+              ['রোল', 'নাম'],
+              ...submitted.map((s: any) => [s.roll, s.name])
+            ];
+
+            const notSubmittedData = [
+              ['রোল', 'নাম'],
+              ...notSubmitted.map((s: any) => [s.roll, s.name])
+            ];
+
+            const sheets = [
+              { title: 'জমা দিয়েছে', data: submittedData },
+              { title: 'জমা দেয়নি', data: notSubmittedData }
+            ];
+
+            const data = await createOrUpdateSpreadsheet(
+              token,
+              `হোমওয়ার্ক রিপোর্ট - ${date}`,
+              sheets,
+              record?.spreadsheetId
+            );
+
             if (!record?.spreadsheetId && db) {
-              await setDoc(doc(db, 'homework', date), {
+              await setDoc(doc(db, 'records', date), {
                 date,
                 submissions: currentSubmissions,
                 timestamp: Date.now(),
@@ -83,38 +104,16 @@ export default function HomeworkTracker({ students, records }: Props) {
             }
             toast.success(record?.spreadsheetId ? 'সফলভাবে গুগল শিট আপডেট হয়েছে!' : 'সফলভাবে গুগল শিট তৈরি হয়েছে!');
             window.open(data.url, '_blank');
-          } else {
-            toast.error('গুগল শিট তৈরি/আপডেট করতে সমস্যা হয়েছে: ' + data.error);
+          } catch (err: any) {
+            console.error(err);
+            toast.error('গুগল শিট তৈরি/আপডেট করতে সমস্যা হয়েছে: ' + err.message);
+          } finally {
+            setIsExportingSheets(false);
           }
-        } catch (err) {
-          toast.error('গুগল শিট তৈরি/আপডেট করতে সমস্যা হয়েছে।');
-        } finally {
-          setIsExportingSheets(false);
-        }
-      }
-    };
-    
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [date, submittedStudents, notSubmittedStudents, record, currentSubmissions]);
-
-  const exportToGoogleSheets = async () => {
-    setIsExportingSheets(true);
-    try {
-      const response = await fetch('/api/auth/google/url');
-      const data = await response.json();
+        },
+      });
       
-      if (!response.ok) {
-        toast.error('Google OAuth কনফিগার করা নেই। দয়া করে Settings থেকে GOOGLE_CLIENT_ID এবং GOOGLE_CLIENT_SECRET সেট করুন।');
-        setIsExportingSheets(false);
-        return;
-      }
-
-      const authWindow = window.open(data.url, 'oauth_popup', 'width=600,height=700');
-      if (!authWindow) {
-        toast.error('পপআপ ব্লক করা হয়েছে। দয়া করে পপআপ অ্যালাউ করুন।');
-        setIsExportingSheets(false);
-      }
+      client.requestAccessToken({prompt: 'consent'});
     } catch (error) {
       console.error('Error initiating OAuth:', error);
       toast.error('গুগল কানেক্ট করতে সমস্যা হয়েছে।');

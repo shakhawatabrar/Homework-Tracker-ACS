@@ -36,38 +36,63 @@ const ExamCard: React.FC<ExamCardProps> = ({ exam, allExams, students, role }) =
   const passedStudentsList = presentStudentsList.filter(s => marks[s.id] !== null && marks[s.id]! >= 1);
   const failedStudentsList = presentStudentsList.filter(s => marks[s.id] === 0);
 
-  useEffect(() => {
-    const handleMessage = async (event: MessageEvent) => {
-      const origin = event.origin;
-      if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
-        return;
-      }
-      
-      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
-        const token = event.data.token;
-        setIsExportingSheets(true);
-        
-        const passed = passedStudentsList.map(s => ({ roll: s.roll, name: s.name, mark: marks[s.id] }));
-        const failed = failedStudentsList.map(s => ({ roll: s.roll, name: s.name }));
-        const absent = absentStudentsList.map(s => ({ roll: s.roll, name: s.name }));
+  const exportToGoogleSheets = async () => {
+    setIsExportingSheets(true);
+    
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    
+    if (!clientId) {
+      alert('Google OAuth কনফিগার করা নেই। দয়া করে Netlify/Vercel এর Environment Variables এ VITE_GOOGLE_CLIENT_ID সেট করুন।');
+      setIsExportingSheets(false);
+      return;
+    }
 
-        try {
-          const res = await fetch('/api/export-sheets', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              token,
-              examTitle: exam.title,
-              examDate: exam.date,
-              passed,
-              failed,
-              absent,
-              existingSpreadsheetId: exam.spreadsheetId
-            })
-          });
+    try {
+      const client = (window as any).google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/spreadsheets',
+        callback: async (response: any) => {
+          if (response.error !== undefined) {
+            throw (response);
+          }
           
-          const data = await res.json();
-          if (data.success) {
+          const token = response.access_token;
+          
+          const passed = passedStudentsList.map(s => ({ roll: s.roll, name: s.name, mark: marks[s.id] }));
+          const failed = failedStudentsList.map(s => ({ roll: s.roll, name: s.name }));
+          const absent = absentStudentsList.map(s => ({ roll: s.roll, name: s.name }));
+
+          try {
+            const { createOrUpdateSpreadsheet } = await import('../utils/googleSheets');
+            
+            const passedData = [
+              ['রোল', 'নাম', 'প্রাপ্ত স্টার'],
+              ...passed.map((s: any) => [s.roll, s.name, `${s.mark}★`])
+            ];
+
+            const failedData = [
+              ['রোল', 'নাম', 'প্রাপ্ত স্টার'],
+              ...failed.map((s: any) => [s.roll, s.name, '০★'])
+            ];
+
+            const absentData = [
+              ['রোল', 'নাম'],
+              ...absent.map((s: any) => [s.roll, s.name])
+            ];
+
+            const sheets = [
+              { title: 'পাস করেছে', data: passedData },
+              { title: 'ফেল করেছে', data: failedData },
+              { title: 'অনুপস্থিত', data: absentData }
+            ];
+
+            const data = await createOrUpdateSpreadsheet(
+              token,
+              `পরীক্ষার ফলাফল - ${exam.title} (${exam.date})`,
+              sheets,
+              exam.spreadsheetId
+            );
+
             if (!exam.spreadsheetId && db) {
               await updateDoc(doc(db, 'exams', exam.id), {
                 spreadsheetId: data.spreadsheetId,
@@ -76,38 +101,16 @@ const ExamCard: React.FC<ExamCardProps> = ({ exam, allExams, students, role }) =
             }
             alert(exam.spreadsheetId ? 'সফলভাবে গুগল শিট আপডেট হয়েছে!' : 'সফলভাবে গুগল শিট তৈরি হয়েছে!');
             window.open(data.url, '_blank');
-          } else {
-            alert('গুগল শিট তৈরি/আপডেট করতে সমস্যা হয়েছে: ' + data.error);
+          } catch (err: any) {
+            console.error(err);
+            alert('গুগল শিট তৈরি/আপডেট করতে সমস্যা হয়েছে: ' + err.message);
+          } finally {
+            setIsExportingSheets(false);
           }
-        } catch (err) {
-          alert('গুগল শিট তৈরি/আপডেট করতে সমস্যা হয়েছে।');
-        } finally {
-          setIsExportingSheets(false);
-        }
-      }
-    };
-    
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [exam.title, exam.date, passedStudentsList, failedStudentsList, absentStudentsList, marks]);
-
-  const exportToGoogleSheets = async () => {
-    setIsExportingSheets(true);
-    try {
-      const response = await fetch('/api/auth/google/url');
-      const data = await response.json();
+        },
+      });
       
-      if (!response.ok) {
-        alert('Google OAuth কনফিগার করা নেই। দয়া করে Settings থেকে GOOGLE_CLIENT_ID এবং GOOGLE_CLIENT_SECRET সেট করুন।');
-        setIsExportingSheets(false);
-        return;
-      }
-
-      const authWindow = window.open(data.url, 'oauth_popup', 'width=600,height=700');
-      if (!authWindow) {
-        alert('পপআপ ব্লক করা হয়েছে। দয়া করে পপআপ অ্যালাউ করুন।');
-        setIsExportingSheets(false);
-      }
+      client.requestAccessToken({prompt: 'consent'});
     } catch (error) {
       console.error('Error initiating OAuth:', error);
       alert('গুগল কানেক্ট করতে সমস্যা হয়েছে।');
