@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { Student } from '../types';
-import { Plus, Trash2, Edit2, X, Check, Search } from 'lucide-react';
+import { Plus, Trash2, Edit2, X, Check, Search, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+// @ts-ignore
+import html2pdf from 'html2pdf.js';
+import toast from 'react-hot-toast';
 
 interface Props {
   students: Student[];
@@ -15,6 +18,130 @@ export default function StudentManager({ students }: Props) {
   const [roll, setRoll] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isExportingSheets, setIsExportingSheets] = useState(false);
+
+  const filteredStudents = students.filter(student => 
+    student.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    student.roll.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const exportToGoogleSheets = async () => {
+    setIsExportingSheets(true);
+    
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    
+    if (!clientId) {
+      toast.error('Google OAuth কনফিগার করা নেই। দয়া করে Netlify/Vercel এর Environment Variables এ VITE_GOOGLE_CLIENT_ID সেট করুন।');
+      setIsExportingSheets(false);
+      return;
+    }
+
+    try {
+      const client = (window as any).google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/spreadsheets',
+        callback: async (response: any) => {
+          if (response.error !== undefined) {
+            throw (response);
+          }
+          
+          const token = response.access_token;
+          
+          try {
+            const { createOrUpdateSpreadsheet } = await import('../utils/googleSheets');
+            
+            const studentData = [
+              ['রোল', 'নাম'],
+              ...filteredStudents.sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true})).map((s: any) => [s.roll, s.name])
+            ];
+
+            const sheets = [
+              { title: 'ছাত্রের তালিকা', data: studentData }
+            ];
+
+            const data = await createOrUpdateSpreadsheet(
+              token,
+              `ছাত্রের তালিকা - ${new Date().toLocaleDateString('en-GB')}`,
+              sheets
+            );
+
+            toast.success('সফলভাবে গুগল শিট তৈরি হয়েছে!');
+            window.open(data.url, '_blank');
+          } catch (err: any) {
+            console.error(err);
+            toast.error('গুগল শিট তৈরি করতে সমস্যা হয়েছে: ' + err.message);
+          } finally {
+            setIsExportingSheets(false);
+          }
+        },
+      });
+      
+      client.requestAccessToken({prompt: 'consent'});
+    } catch (error) {
+      console.error('Error initiating OAuth:', error);
+      toast.error('গুগল কানেক্ট করতে সমস্যা হয়েছে।');
+      setIsExportingSheets(false);
+    }
+  };
+
+  const downloadTxt = () => {
+    let content = `ছাত্রের তালিকা\n`;
+    content += `মোট ছাত্র: ${filteredStudents.length} জন\n`;
+    content += `----------------------------------------\n\n`;
+    
+    filteredStudents.sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true})).forEach(s => {
+      content += `রোল: ${s.roll} - ${s.name}\n`;
+    });
+
+    const blob = new Blob(['\uFEFF' + content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `student_list_${new Date().toISOString().split('T')[0]}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadPdf = () => {
+    const element = document.createElement('div');
+    const sortedStudents = [...filteredStudents].sort((a, b) => a.roll.localeCompare(b.roll, undefined, {numeric: true}));
+    
+    element.innerHTML = `
+      <div style="font-family: sans-serif; padding: 40px; color: #1f2937;">
+        <h2 style="text-align: center; color: #4f46e5; margin-bottom: 5px; font-size: 24px;">ছাত্রের তালিকা</h2>
+        <p style="text-align: center; color: #6b7280; margin-bottom: 30px; font-size: 16px;">মোট ছাত্র: ${sortedStudents.length} জন</p>
+        
+        <div style="margin-bottom: 30px;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background-color: #f3f4f6;">
+                <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb; width: 80px;">রোল</th>
+                <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">নাম</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sortedStudents.length > 0 ? sortedStudents.map(s => `
+                <tr>
+                  <td style="padding: 8px 10px; border: 1px solid #e5e7eb; font-family: monospace;">${s.roll}</td>
+                  <td style="padding: 8px 10px; border: 1px solid #e5e7eb;">${s.name}</td>
+                </tr>
+              `).join('') : `<tr><td colspan="2" style="padding: 10px; text-align: center; border: 1px solid #e5e7eb; color: #6b7280;">কোনো ছাত্রের তথ্য পাওয়া যায়নি</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    const opt = {
+      margin:       10,
+      filename:     `student_list_${new Date().toISOString().split('T')[0]}.pdf`,
+      image:        { type: 'jpeg' as const, quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
+    };
+
+    html2pdf().set(opt).from(element).save();
+  };
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,11 +210,6 @@ export default function StudentManager({ students }: Props) {
     setRoll('');
     setIsAdding(false);
   };
-
-  const filteredStudents = students.filter(student => 
-    student.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    student.roll.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   return (
     <div className="space-y-6">
@@ -163,6 +285,36 @@ export default function StudentManager({ students }: Props) {
       )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-4 bg-gray-50/50 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="text-sm text-gray-600 flex space-x-4">
+            <span>মোট ছাত্র: <strong className="text-gray-900">{filteredStudents.length}</strong></span>
+          </div>
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto items-center">
+            <button 
+              onClick={exportToGoogleSheets}
+              disabled={isExportingSheets}
+              className="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-xl hover:bg-emerald-200 transition-colors text-sm font-medium shadow-sm flex items-center justify-center flex-1 sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
+              title="গুগল শিটে এক্সপোর্ট করুন"
+            >
+              <FileSpreadsheet className="w-4 h-4 mr-1.5" /> 
+              {isExportingSheets ? 'তৈরি হচ্ছে...' : 'শিট'}
+            </button>
+            <button 
+              onClick={downloadTxt}
+              className="bg-gray-100 text-gray-700 px-4 py-2 rounded-xl hover:bg-gray-200 transition-colors text-sm font-medium shadow-sm flex items-center justify-center flex-1 sm:flex-none"
+              title="TXT ডাউনলোড করুন"
+            >
+              <FileText className="w-4 h-4 mr-1.5" /> TXT
+            </button>
+            <button 
+              onClick={downloadPdf}
+              className="bg-gray-100 text-gray-700 px-4 py-2 rounded-xl hover:bg-gray-200 transition-colors text-sm font-medium shadow-sm flex items-center justify-center flex-1 sm:flex-none"
+              title="PDF ডাউনলোড করুন"
+            >
+              <Download className="w-4 h-4 mr-1.5" /> PDF
+            </button>
+          </div>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>

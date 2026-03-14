@@ -20,6 +20,8 @@ export default function HomeworkTracker({ students, records }: Props) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
   const [isExportingSheets, setIsExportingSheets] = useState(false);
+  const [showBulkInput, setShowBulkInput] = useState(false);
+  const [bulkRolls, setBulkRolls] = useState('');
 
   const record = records.find(r => r.date === date);
 
@@ -143,6 +145,46 @@ export default function HomeworkTracker({ students, records }: Props) {
     } catch (error: any) {
       console.error("Error saving record:", error);
       alert("হোমওয়ার্ক সেভ করা যায়নি! Firebase Rules চেক করুন। Error: " + error.message);
+    }
+  };
+
+  const handleBulkSubmit = () => {
+    if (!bulkRolls.trim()) {
+      toast.error('রোল নাম্বার লিখুন');
+      return;
+    }
+
+    // Split by comma, space, or newline and clean up
+    const rolls = bulkRolls
+      .split(/[\n, ]+/)
+      .map(r => r.trim())
+      .filter(r => r.length > 0);
+
+    if (rolls.length === 0) {
+      toast.error('সঠিক রোল নাম্বার পাওয়া যায়নি');
+      return;
+    }
+
+    let matchCount = 0;
+    const newSubmissions = { ...currentSubmissions };
+
+    rolls.forEach(roll => {
+      // Find student by roll (case-insensitive)
+      const student = students.find(s => s.roll.toLowerCase() === roll.toLowerCase());
+      if (student) {
+        newSubmissions[student.id] = true;
+        matchCount++;
+      }
+    });
+
+    setCurrentSubmissions(newSubmissions);
+    setBulkRolls('');
+    setShowBulkInput(false);
+    
+    if (matchCount > 0) {
+      toast.success(`${matchCount} জন স্টুডেন্টকে 'জমা দিয়েছে' হিসেবে মার্ক করা হয়েছে!`);
+    } else {
+      toast.error('কোনো স্টুডেন্টের রোল নাম্বার মেলেনি!');
     }
   };
 
@@ -286,6 +328,12 @@ export default function HomeworkTracker({ students, records }: Props) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-bold text-gray-800">হোমওয়ার্ক ট্র্যাকার</h2>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
+          <button 
+            onClick={() => setShowBulkInput(!showBulkInput)}
+            className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl hover:bg-indigo-100 transition-colors text-sm font-medium shadow-sm flex items-center justify-center w-full sm:w-auto border border-indigo-200"
+          >
+            <FileText className="w-4 h-4 mr-1.5" /> একসাথে মার্ক করুন
+          </button>
           <div className="relative w-full sm:w-64">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-gray-400" />
@@ -309,6 +357,41 @@ export default function HomeworkTracker({ students, records }: Props) {
           </div>
         </div>
       </div>
+
+      {showBulkInput && (
+        <div className="bg-indigo-50/50 border border-indigo-100 p-4 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-4 duration-200">
+          <h3 className="text-sm font-bold text-indigo-800 mb-2 flex items-center">
+            <CheckCircle2 className="w-4 h-4 mr-1.5" />
+            যারা জমা দিয়েছে তাদের রোল নাম্বার দিন
+          </h3>
+          <p className="text-xs text-indigo-600 mb-3">
+            কমা (,), স্পেস ( ) অথবা নতুন লাইনে রোল নাম্বারগুলো লিখুন।
+          </p>
+          <textarea
+            value={bulkRolls}
+            onChange={(e) => setBulkRolls(e.target.value)}
+            placeholder="যেমন: B121015, B121017, B121018..."
+            className="w-full h-24 p-3 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm mb-3 resize-none"
+          />
+          <div className="flex justify-end space-x-2">
+            <button 
+              onClick={() => {
+                setShowBulkInput(false);
+                setBulkRolls('');
+              }}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors text-sm font-medium"
+            >
+              বাতিল
+            </button>
+            <button 
+              onClick={handleBulkSubmit}
+              className="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl transition-colors text-sm font-medium shadow-sm"
+            >
+              অটো মার্ক করুন
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 bg-gray-50/50 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
